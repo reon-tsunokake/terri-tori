@@ -30,6 +30,11 @@ cd terri-tori
 npm install
 ```
 
+### 3. プロジェクトルートに.env.localファイルを作成
+```bash
+
+```
+
 ## 開発手順
 ### 1. githubから最新バージョンをローカルに落とす
 ```bash
