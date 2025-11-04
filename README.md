@@ -1,36 +1,58 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 📸 Terri-Tori
+リアル写真 × 陣地取りゲーム  
+現実の位置情報と写真で、地図を奪い合うSNS型アプリ。
 
-## Getting Started
+---
 
-First, run the development server:
+## 🧱 技術スタック
+| 項目 | 技術 |
+|------|------|
+| フロントエンド | Next.js 15 (App Router) |
+| スタイリング | Tailwind CSS |
+| バックエンド | Firebase (Auth, Firestore, Storage) |
+| デプロイ | Vercel |
+| 地図API | Mapbox|
 
+---
+
+## ⚙️ セットアップ手順（チーム用）
+### 0. Node.jsの環境構築
+[text](https://qiita.com/qulylean/items/0ad521885a04a5ebd202)
+
+### 1. リポジトリのクローン
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/g0325125-debug/terri-tori.git
+cd terri-tori
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. 依存関係のインストール
+```bash
+npm install
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 開発手順
+### 1. githubから最新バージョンをローカルに落とす
+```bash
+git pull origin main
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 2. 開発ブランチを作成
+```bash
+git checkout -b feature/new-branch
+```
 
-## Learn More
+### 3. 開発&テスト
+```bash
+npm run dev
+#localhost:3000にアクセス
+```
 
-To learn more about Next.js, take a look at the following resources:
+### 4. githubにあげる
+```bash
+git add .
+git commit -m "msg"
+git push origin feature/new-branch
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### 5. PR作成 & Merge
+github上でGUI操作
