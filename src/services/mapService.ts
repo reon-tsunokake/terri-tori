@@ -18,4 +18,16 @@ export class MapService {
       throw error;
     }
   }
+
+  /**
+   * 指定エリアの詳細情報を取得します（暫定実装）
+   * Map 連携が整うまでのスタブとして、最低限の形で返却します。
+   */
+  public static async getAreaDetails(areaId: string): Promise<{ name: string; description: string }> {
+    // 将来的には API 呼び出しや別データソースに差し替え
+    return Promise.resolve({
+      name: String(areaId || '不明なエリア'),
+      description: 'このエリアの詳細情報は現在準備中です。',
+    });
+  }
 }

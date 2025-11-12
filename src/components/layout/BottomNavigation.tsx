@@ -2,11 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { HiHome, HiCamera, HiUser } from 'react-icons/hi2';
+import { HiHome, HiChartBar, HiMagnifyingGlass, HiUser } from 'react-icons/hi2';
 
 /**
  * ボトムナビゲーションコンポーネント
- * ホーム、カメラ（投稿）、プロフィールの3つのナビゲーション項目を提供
+ * 仕様変更: [ホーム, ランキング, 検索, プロフィール] の4項目に変更
+ * 「投稿」ボタンは削除され、CameraButton.tsxとして分離
  */
 export default function BottomNavigation() {
   const pathname = usePathname();
@@ -19,10 +20,16 @@ export default function BottomNavigation() {
       isActive: pathname === '/'
     },
     {
-      href: '/post',
-      icon: HiCamera,
-      label: '投稿',
-      isActive: pathname === '/post'
+      href: '/ranking',
+      icon: HiChartBar,
+      label: 'ランキング',
+      isActive: pathname === '/ranking'
+    },
+    {
+      href: '/search',
+      icon: HiMagnifyingGlass,
+      label: '検索',
+      isActive: pathname === '/search'
     },
     {
       href: '/profile',
@@ -33,7 +40,7 @@ export default function BottomNavigation() {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-rose-100 z-50">
+    <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-rose-100 z-10">
       <div className="max-w-sm mx-auto px-4 py-2 sm:py-3">
         <div className="flex justify-around items-center">
           {navItems.map((item) => {
@@ -65,7 +72,7 @@ export default function BottomNavigation() {
       </div>
       
       {/* Safe area padding for devices with home indicator */}
-      <div className="h-safe-area-inset-bottom bg-white/95"></div>
+      <div className="h-[env(safe-area-inset-bottom)] bg-white/95"></div>
     </nav>
   );
 }
