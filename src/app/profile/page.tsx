@@ -3,9 +3,17 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useAuth } from '../../contexts/AuthContext';
 import { validateProfileForm } from '../../utils/validation';
 import BottomNavigation from '../../components/layout/BottomNavigation';
+import { getPosts } from '@/services/postService';
+import type { PostDocument } from '@/types/firestore';
+import { FaCamera, FaHeart, FaTrophy, FaStar } from 'react-icons/fa';
+import { HiLocationMarker } from 'react-icons/hi';
+import { MdPerson, MdBarChart, MdPhotoLibrary } from 'react-icons/md';
+
+type TabType = 'personal' | 'status' | 'posts';
 
 export default function ProfilePage() {
   const { user, userProfile, updateUserProfile, loading, logout } = useAuth();
@@ -14,6 +22,9 @@ export default function ProfilePage() {
   const [location, setLocation] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
   const [message, setMessage] = useState('');
+  const [myPosts, setMyPosts] = useState<Array<PostDocument & { id: string }>>([]);
+  const [postsLoading, setPostsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<TabType>('personal');
   const router = useRouter();
 
   useEffect(() => {
@@ -28,6 +39,30 @@ export default function ProfilePage() {
       setLocation(userProfile.location);
     }
   }, [user, userProfile, loading, router]);
+
+  // 自分の投稿を取得
+  useEffect(() => {
+    const fetchMyPosts = async () => {
+      if (!user) return;
+      
+      try {
+        setPostsLoading(true);
+        const posts = await getPosts({
+          userId: user.uid,
+          orderByField: 'createdAt',
+        });
+        setMyPosts(posts);
+      } catch (error) {
+        console.error('プロフィール: 投稿取得エラー:', error);
+      } finally {
+        setPostsLoading(false);
+      }
+    };
+
+    if (user) {
+      fetchMyPosts();
+    }
+  }, [user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,55 +125,186 @@ export default function ProfilePage() {
           <div className="w-12 h-1 bg-gradient-to-r from-rose-400 to-pink-400 mx-auto mt-2 rounded-full"></div>
         </div>
 
-        {/* プロフィール情報カード */}
-        {userProfile && (
-          <div className="bg-white/80 backdrop-blur-sm shadow-2xl rounded-2xl p-6 mb-6 border border-rose-100">
-            <div className="text-center mb-6">
-              <div className="w-20 h-20 bg-gradient-to-r from-rose-400 to-pink-400 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-white text-2xl font-bold">
-                  {(userProfile.displayName || user?.displayName || user?.email)?.[0]?.toUpperCase()}
-                </span>
+        {/* メインカード */}
+        <div className="bg-white/80 backdrop-blur-sm shadow-2xl rounded-2xl border border-rose-100 overflow-hidden mb-6">
+          {/* プロフィール情報 */}
+          {userProfile && (
+            <div className="p-6 border-b border-rose-100">
+              <div className="text-center mb-6">
+                <div className="w-20 h-20 bg-gradient-to-r from-rose-400 to-pink-400 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <span className="text-white text-2xl font-bold">
+                    {(userProfile.displayName || user?.displayName || user?.email)?.[0]?.toUpperCase()}
+                  </span>
+                </div>
+                <h2 className="text-xl font-semibold text-gray-800 mb-1">
+                  {userProfile.displayName || user?.displayName || user?.email?.split('@')[0]}
+                </h2>
+                <p className="text-gray-600 text-sm">{user?.email}</p>
               </div>
-              <h2 className="text-xl font-semibold text-gray-800 mb-1">
-                {userProfile.displayName || user?.displayName || user?.email?.split('@')[0]}
-              </h2>
-              <p className="text-gray-600 text-sm">{user?.email}</p>
-            </div>
 
-            {/* フォロー関係の情報 */}
-            <div className="flex justify-center space-x-8 mb-6 py-4 bg-rose-50 rounded-xl">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-rose-500">{userProfile.postCount}</div>
-                <div className="text-sm text-gray-600">投稿</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-pink-500">{userProfile.followerCount}</div>
-                <div className="text-sm text-gray-600">フォロワー</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-rose-400">{userProfile.followingCount}</div>
-                <div className="text-sm text-gray-600">フォロー中</div>
+              {/* フォロー関係の情報 */}
+              <div className="flex justify-center space-x-8 py-4 bg-rose-50 rounded-xl">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-rose-500">{userProfile.postCount}</div>
+                  <div className="text-sm text-gray-600">投稿</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-pink-500">{userProfile.followerCount}</div>
+                  <div className="text-sm text-gray-600">フォロワー</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-rose-400">{userProfile.followingCount}</div>
+                  <div className="text-sm text-gray-600">フォロー中</div>
+                </div>
               </div>
             </div>
+          )}
 
-            {/* ゲーミフィケーション情報 */}
+          {/* タブナビゲーション */}
+          <div className="flex border-b border-rose-100">
+            <button
+              onClick={() => setActiveTab('personal')}
+              className={`flex-1 py-4 px-4 flex items-center justify-center gap-2 font-semibold transition-all duration-200 ${
+                activeTab === 'personal'
+                  ? 'bg-gradient-to-r from-rose-500 to-pink-500 text-white'
+                  : 'text-gray-600 hover:bg-rose-50'
+              }`}
+            >
+              <MdPerson className="text-xl" />
+              <span className="hidden sm:inline">個人情報</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('status')}
+              className={`flex-1 py-4 px-4 flex items-center justify-center gap-2 font-semibold transition-all duration-200 ${
+                activeTab === 'status'
+                  ? 'bg-gradient-to-r from-rose-500 to-pink-500 text-white'
+                  : 'text-gray-600 hover:bg-rose-50'
+              }`}
+            >
+              <MdBarChart className="text-xl" />
+              <span className="hidden sm:inline">ステータス</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('posts')}
+              className={`flex-1 py-4 px-4 flex items-center justify-center gap-2 font-semibold transition-all duration-200 ${
+                activeTab === 'posts'
+                  ? 'bg-gradient-to-r from-rose-500 to-pink-500 text-white'
+                  : 'text-gray-600 hover:bg-rose-50'
+              }`}
+            >
+              <MdPhotoLibrary className="text-xl" />
+              <span className="hidden sm:inline">投稿</span>
+            </button>
+          </div>
+
+          {/* タブコンテンツ */}
+          <div className="p-6 sm:p-8">
+            {/* 個人情報タブ */}
+            {activeTab === 'personal' && (
+              <div>
+            <h3 className="text-xl font-semibold text-gray-800 mb-6 flex items-center gap-2">
+              <MdPerson className="text-rose-500" /> 個人情報編集
+            </h3>
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div>
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+                  メールアドレス
+                </label>
+                <input
+                  type="email"
+                  id="email"
+                  value={user.email || ''}
+                  disabled
+                  className="w-full px-4 py-4 text-base border-2 border-gray-200 rounded-xl bg-gray-50 text-gray-500 cursor-not-allowed"
+                />
+                <p className="mt-2 text-xs text-gray-500">メールアドレスは変更できません</p>
+              </div>
+
+              <div>
+                <label htmlFor="displayName" className="block text-sm font-semibold text-gray-700 mb-2">
+                  表示名
+                </label>
+                <input
+                  type="text"
+                  id="displayName"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  className="w-full px-4 py-4 text-base border-2 border-rose-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-400 focus:border-transparent transition-all duration-300 text-gray-900"
+                  placeholder="表示名を入力"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="bio" className="block text-sm font-semibold text-gray-700 mb-2">
+                  自己紹介
+                </label>
+                <textarea
+                  id="bio"
+                  rows={4}
+                  value={bio}
+                  onChange={(e) => setBio(e.target.value)}
+                  className="w-full px-4 py-4 text-base border-2 border-rose-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-400 focus:border-transparent transition-all duration-300 text-gray-900 resize-none"
+                  placeholder="自己紹介を入力"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="location" className="block text-sm font-semibold text-gray-700 mb-2">
+                  場所
+                </label>
+                <input
+                  type="text"
+                  id="location"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  className="w-full px-4 py-4 text-base border-2 border-rose-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-400 focus:border-transparent transition-all duration-300 text-gray-900"
+                  placeholder="居住地を入力"
+                />
+              </div>
+
+              {message && (
+                <div className={`text-sm text-center p-3 rounded-md ${
+                  message.includes('失敗') 
+                    ? 'text-red-600 bg-red-50' 
+                    : 'text-green-600 bg-green-50'
+                }`}>
+                  {message}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={isUpdating}
+                className="w-full py-4 px-4 text-base font-semibold bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-xl hover:from-rose-600 hover:to-pink-600 focus:outline-none focus:ring-4 focus:ring-rose-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg hover:shadow-xl active:scale-[0.98] touch-manipulation"
+              >
+                {isUpdating ? '更新中...' : 'プロフィールを更新'}
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* ステータスタブ */}
+        {activeTab === 'status' && userProfile && (
+          <div>
+            <h3 className="text-xl font-semibold text-gray-800 mb-6 flex items-center gap-2">
+              <MdBarChart className="text-rose-500" /> プレイヤーステータス
+            </h3>
+
+            {/* レベルと経験値 */}
             <div className="mb-6 p-4 bg-gradient-to-r from-amber-50 to-yellow-50 rounded-xl border border-amber-200">
-              <h3 className="text-lg font-semibold text-amber-700 mb-3 text-center">🎮 プレイヤーステータス</h3>
-              
-              {/* レベルと経験値 */}
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center space-x-3">
-                  <div className="w-12 h-12 bg-gradient-to-r from-amber-400 to-yellow-400 rounded-full flex items-center justify-center">
-                    <span className="text-white font-bold text-lg">{userProfile.level || 1}</span>
+                  <div className="w-16 h-16 bg-gradient-to-r from-amber-400 to-yellow-400 rounded-full flex items-center justify-center shadow-lg">
+                    <span className="text-white font-bold text-2xl">{userProfile.level || 1}</span>
                   </div>
                   <div>
-                    <div className="text-sm font-medium text-amber-700">レベル {userProfile.level || 1}</div>
-                    <div className="text-xs text-amber-600">{userProfile.experience || 0} XP</div>
+                    <div className="text-lg font-bold text-amber-700">レベル {userProfile.level || 1}</div>
+                    <div className="text-sm text-amber-600">{userProfile.experience || 0} XP</div>
                   </div>
                 </div>
                 <div className="text-right">
                   <div className="text-xs text-amber-600">次のレベルまで</div>
-                  <div className="text-sm font-medium text-amber-700">
+                  <div className="text-lg font-bold text-amber-700">
                     {100 - ((userProfile.experience || 0) % 100)} XP
                   </div>
                 </div>
@@ -150,132 +316,146 @@ export default function ProfilePage() {
                   <span>経験値</span>
                   <span>{((userProfile.experience || 0) % 100)}/100</span>
                 </div>
-                <div className="w-full bg-amber-200 rounded-full h-2">
+                <div className="w-full bg-amber-200 rounded-full h-3">
                   <div 
-                    className="bg-gradient-to-r from-amber-400 to-yellow-400 h-2 rounded-full transition-all duration-500"
+                    className="bg-gradient-to-r from-amber-400 to-yellow-400 h-3 rounded-full transition-all duration-500 shadow-sm"
                     style={{
                       width: `${((userProfile.experience || 0) % 100)}%`
                     }}
                   ></div>
                 </div>
               </div>
+            </div>
 
-              {/* 実績 */}
-              <div>
-                <h4 className="text-sm font-medium text-amber-700 mb-2">🏆 実績 ({(userProfile.achievements || []).length})</h4>
-                <div className="flex flex-wrap gap-2">
-                  {(userProfile.achievements || []).length > 0 ? (
-                    userProfile.achievements.map((achievement, index) => (
-                      <span 
-                        key={index}
-                        className="px-3 py-1 bg-gradient-to-r from-amber-200 to-yellow-200 text-amber-800 text-xs rounded-full font-medium"
-                      >
-                        {achievement}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-xs text-amber-600 italic">まだ実績がありません</span>
-                  )}
+            {/* 統計情報 */}
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              <div className="text-center p-4 bg-rose-50 rounded-xl">
+                <div className="flex justify-center items-center mb-2">
+                  <FaCamera className="text-rose-500 text-2xl" />
                 </div>
+                <div className="text-2xl font-bold text-gray-800">{userProfile.postCount || 0}</div>
+                <div className="text-sm text-gray-600">投稿</div>
+              </div>
+              <div className="text-center p-4 bg-pink-50 rounded-xl">
+                <div className="flex justify-center items-center mb-2">
+                  <FaHeart className="text-pink-500 text-2xl" />
+                </div>
+                <div className="text-2xl font-bold text-gray-800">{userProfile.followerCount || 0}</div>
+                <div className="text-sm text-gray-600">いいね</div>
+              </div>
+              <div className="text-center p-4 bg-amber-50 rounded-xl">
+                <div className="flex justify-center items-center mb-2">
+                  <FaTrophy className="text-amber-500 text-2xl" />
+                </div>
+                <div className="text-2xl font-bold text-gray-800">{(userProfile.achievements || []).length}</div>
+                <div className="text-sm text-gray-600">実績</div>
               </div>
             </div>
 
-            <div className="text-center text-sm text-gray-500 space-y-1">
-              <p>登録日: {userProfile.createdAt?.toDate?.()?.toLocaleDateString('ja-JP') || '不明'}</p>
-              <p>最終更新: {userProfile.updatedAt?.toDate?.()?.toLocaleDateString('ja-JP') || '不明'}</p>
+            {/* 実績一覧 */}
+            <div>
+              <h4 className="text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                <FaTrophy className="text-amber-500" /> 獲得した実績
+              </h4>
+              <div className="flex flex-wrap gap-2">
+                {(userProfile.achievements || []).length > 0 ? (
+                  userProfile.achievements.map((achievement, index) => (
+                    <span 
+                      key={index}
+                      className="px-4 py-2 bg-gradient-to-r from-amber-200 to-yellow-200 text-amber-800 text-sm rounded-full font-medium shadow-sm"
+                    >
+                      <FaStar className="inline mr-1 text-amber-600" />
+                      {achievement}
+                    </span>
+                  ))
+                ) : (
+                  <div className="w-full text-center py-8 text-gray-500">
+                    <FaStar className="text-4xl mx-auto mb-3 text-gray-300" />
+                    <p className="text-sm">まだ実績がありません</p>
+                    <p className="text-xs mt-1">投稿を続けて実績をアンロックしよう！</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
 
-        {/* プロフィール編集フォーム */}
-
-        <div className="bg-white/80 backdrop-blur-sm shadow-2xl rounded-2xl p-6 sm:p-8 border border-rose-100">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                メールアドレス
-              </label>
-              <input
-                type="email"
-                id="email"
-                value={user.email || ''}
-                disabled
-                className="mt-1 block w-full px-4 py-4 text-base border-2 border-gray-200 rounded-xl bg-gray-50 text-gray-500 cursor-not-allowed"
-              />
-              <p className="mt-2 text-xs text-gray-500">メールアドレスは変更できません</p>
+        {/* 投稿タブ */}
+        {activeTab === 'posts' && (
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
+                <MdPhotoLibrary className="text-rose-500" /> マイ投稿
+              </h3>
+              <span className="text-sm text-gray-500 bg-rose-50 px-3 py-1 rounded-full">{myPosts.length}件</span>
             </div>
 
-            <div>
-              <label htmlFor="displayName" className="block text-sm font-semibold text-gray-700 mb-2">
-                表示名
-              </label>
-              <input
-                type="text"
-                id="displayName"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                className="w-full px-4 py-4 text-base border-2 border-rose-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-400 focus:border-transparent transition-all duration-300 text-gray-900"
-                placeholder="表示名を入力"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="bio" className="block text-sm font-semibold text-gray-700 mb-2">
-                自己紹介
-              </label>
-              <textarea
-                id="bio"
-                rows={4}
-                value={bio}
-                onChange={(e) => setBio(e.target.value)}
-                className="w-full px-4 py-4 text-base border-2 border-rose-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-400 focus:border-transparent transition-all duration-300 text-gray-900 resize-none"
-                placeholder="自己紹介を入力"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="location" className="block text-sm font-semibold text-gray-700 mb-2">
-                場所
-              </label>
-              <input
-                type="text"
-                id="location"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                className="w-full px-4 py-4 text-base border-2 border-rose-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-400 focus:border-transparent transition-all duration-300 text-gray-900"
-                placeholder="居住地を入力"
-              />
-            </div>
-
-            {message && (
-              <div className={`text-sm text-center p-3 rounded-md ${
-                message.includes('失敗') 
-                  ? 'text-red-600 bg-red-50' 
-                  : 'text-green-600 bg-green-50'
-              }`}>
-                {message}
+            {postsLoading ? (
+              <div className="text-center py-12 text-gray-500">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-500 mx-auto mb-3"></div>
+                <p className="text-sm">読み込み中...</p>
+              </div>
+            ) : myPosts.length > 0 ? (
+              <div className="grid grid-cols-3 gap-2">
+                {myPosts.map((post) => (
+                  <div
+                    key={post.id}
+                    className="aspect-square relative rounded-lg overflow-hidden bg-gray-100 cursor-pointer hover:opacity-80 transition-opacity group"
+                  >
+                    {post.imageUrl ? (
+                      <Image
+                        src={post.imageUrl}
+                        alt={post.caption}
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 640px) 33vw, 150px"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-rose-100 to-pink-100">
+                        <FaCamera className="text-rose-300 text-3xl" />
+                      </div>
+                    )}
+                    
+                    {/* ホバー時のオーバーレイ */}
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <div className="text-white text-center text-xs">
+                        <div className="flex items-center justify-center gap-3">
+                          <span className="flex items-center gap-1">
+                            <FaHeart className="text-red-400" /> {post.likesCount || 0}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <FaCamera className="text-6xl mb-4 mx-auto text-rose-300" />
+                <p className="text-gray-500 mb-4">まだ投稿がありません</p>
+                <Link
+                  href="/"
+                  className="inline-block px-6 py-3 bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-xl hover:from-rose-600 hover:to-pink-600 transition-all duration-300 shadow-lg text-sm font-medium"
+                >
+                  最初の投稿をする
+                </Link>
               </div>
             )}
+          </div>
+        )}
+          </div>
 
+          {/* ログアウトボタン */}
+          <div className="p-6 border-t border-rose-100">
             <button
-              type="submit"
-              disabled={isUpdating}
-              className="w-full py-4 px-4 text-base font-semibold bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-xl hover:from-rose-600 hover:to-pink-600 focus:outline-none focus:ring-4 focus:ring-rose-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg hover:shadow-xl active:scale-[0.98] touch-manipulation"
+              onClick={handleLogout}
+              className="w-full py-4 px-4 text-base font-semibold bg-gradient-to-r from-gray-500 to-gray-600 text-white rounded-xl hover:from-gray-600 hover:to-gray-700 focus:outline-none focus:ring-4 focus:ring-gray-300 transition-all duration-300 shadow-lg hover:shadow-xl active:scale-[0.98] touch-manipulation"
             >
-              {isUpdating ? '更新中...' : 'プロフィールを更新'}
+              ログアウト
             </button>
-          </form>
+          </div>
         </div>
 
-        {/* ログアウトボタン */}
-        <div className="bg-white/80 backdrop-blur-sm shadow-2xl rounded-2xl p-6 border border-rose-100">
-          <button
-            onClick={handleLogout}
-            className="w-full py-4 px-4 text-base font-semibold bg-gradient-to-r from-gray-500 to-gray-600 text-white rounded-xl hover:from-gray-600 hover:to-gray-700 focus:outline-none focus:ring-4 focus:ring-gray-300 transition-all duration-300 shadow-lg hover:shadow-xl active:scale-[0.98] touch-manipulation"
-          >
-            ログアウト
-          </button>
-        </div>
       </div>
       
       {/* Bottom Navigation */}

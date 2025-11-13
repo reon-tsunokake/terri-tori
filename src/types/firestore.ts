@@ -1,4 +1,4 @@
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp, GeoPoint, FieldValue } from 'firebase/firestore';
 
 // Firestoreのユーザードキュメント構造
 export interface UserDocument {
@@ -33,4 +33,33 @@ export interface UpdateUserProfileData {
   bio?: string;
   location?: string;
   photoURL?: string | null;
+}
+
+// 投稿ドキュメント構造
+export interface PostDocument {
+  userId: string;
+  regionId: string;
+  seasonId: string;
+  imageUrl: string;
+  caption: string;
+  likesCount: number;
+  score: number;
+  createdAt: Timestamp;
+  location: GeoPoint;
+}
+
+// 投稿作成時のデータ
+export interface CreatePostData {
+  userId: string;
+  regionId: string;
+  seasonId: string;
+  imageUrl: string;
+  caption: string;
+  location: GeoPoint;
+}
+
+// いいねサブコレクション構造
+export interface PostLikeDocument {
+  userId: string;
+  createdAt: Timestamp;
 }
