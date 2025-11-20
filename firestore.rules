@@ -10,13 +10,26 @@ service cloud.firestore {
       allow read: if request.auth != null;
     }
     
-    // 投稿のルール（将来の機能用）
+    // 投稿のルール
     match /posts/{postId} {
       // 認証済みユーザーは投稿を読み取り可能
       allow read: if request.auth != null;
-      // 投稿者のみが自分の投稿を作成・更新・削除可能
-      allow create: if request.auth != null && request.auth.uid == resource.data.authorId;
-      allow update, delete: if request.auth != null && request.auth.uid == resource.data.authorId;
+      // 認証済みユーザーは投稿を作成可能（自分のuserIdが含まれていること）
+      allow create: if request.auth != null 
+                    && request.resource.data.userId == request.auth.uid
+                    && request.resource.data.keys().hasAll(['userId', 'regionId', 'seasonId', 'caption', 'location']);
+      // 投稿者のみが自分の投稿を更新・削除可能
+      allow update, delete: if request.auth != null 
+                            && resource.data.userId == request.auth.uid;
+      
+      // いいねのサブコレクション
+      match /likes/{likeId} {
+        // 認証済みユーザーはいいねを読み取り可能
+        allow read: if request.auth != null;
+        // 認証済みユーザーは自分のいいねを作成・削除可能
+        allow create, delete: if request.auth != null 
+                              && request.auth.uid == likeId;
+      }
     }
     
     // その他のコレクションへのアクセスを制限
