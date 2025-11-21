@@ -4,6 +4,7 @@ import "./globals.css";
 import { AuthProvider } from "../contexts/AuthContext";
 import Header from "../components/layout/Header";
 import { LocationProvider } from "../contexts/LocationContext";
+import { SeasonPostProvider } from "../contexts/SeasonPostContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -34,7 +35,9 @@ export default function RootLayout({
           <Header />
           <div className="pt-14 sm:pt-16 md:pt-20">
             <LocationProvider>
-            {children}
+              <SeasonPostProvider>
+                {children}
+              </SeasonPostProvider>
             </LocationProvider>
           </div>
         </AuthProvider>

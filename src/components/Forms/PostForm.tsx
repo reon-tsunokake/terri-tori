@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect, ChangeEvent, FormEvent } from 'react';
 import { GeoPoint } from 'firebase/firestore';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSeasonPost } from '@/contexts/SeasonPostContext';
+import { useLocation } from '@/contexts/LocationContext';
 import {
   createPost,
   uploadPostImage,
@@ -14,19 +16,10 @@ import {
   PostFormData,
   PostFormErrors,
   PostFormState,
-  RegionOption,
 } from '@/types/post';
-import { HiCamera, HiX } from 'react-icons/hi';
+import { HiX } from 'react-icons/hi';
 import { FaCamera } from 'react-icons/fa';
 import { MdCancel } from 'react-icons/md';
-
-// 地域選択肢（実際のアプリでは別ファイルやDBから取得）
-const REGION_OPTIONS: RegionOption[] = [
-  { id: 'region_morioka', name: '盛岡' },
-  { id: 'region_sendai', name: '仙台' },
-  { id: 'region_tokyo', name: '東京' },
-  // 必要に応じて追加
-];
 
 interface PostFormProps {
   onSuccess?: () => void;
@@ -37,7 +30,8 @@ interface PostFormProps {
 
 export default function PostForm({ onSuccess, onCancel, initialLatitude, initialLongitude }: PostFormProps) {
   const { user } = useAuth();
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { currentSeasonId, loading: seasonLoading } = useSeasonPost();
+  const { location } = useLocation();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -69,6 +63,21 @@ export default function PostForm({ onSuccess, onCancel, initialLatitude, initial
       }));
     }
   }, [initialLatitude, initialLongitude]);
+
+  // locationから regionIdを自動設定
+  useEffect(() => {
+    if (location.regionId) {
+      setFormData((prev: PostFormData) => ({
+        ...prev,
+        regionId: location.regionId || '',
+      }));
+    }
+  }, [location.regionId]);
+
+  // マウント時にカメラを自動起動
+  useEffect(() => {
+    openCamera();
+  }, []);
 
   // カメラ起動
   const openCamera = async () => {
@@ -143,46 +152,6 @@ export default function PostForm({ onSuccess, onCancel, initialLatitude, initial
     };
   }, []);
 
-  // 画像選択ハンドラー
-  const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // 画像ファイルのバリデーション
-    if (!file.type.startsWith('image/')) {
-      setFormState((prev: PostFormState) => ({
-        ...prev,
-        errors: { ...prev.errors, imageFile: '画像ファイルを選択してください' },
-      }));
-      return;
-    }
-
-    // ファイルサイズチェック（5MB制限）
-    if (file.size > 5 * 1024 * 1024) {
-      setFormState((prev: PostFormState) => ({
-        ...prev,
-        errors: {
-          ...prev.errors,
-          imageFile: 'ファイルサイズは5MB以下にしてください',
-        },
-      }));
-      return;
-    }
-
-    // プレビュー作成
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setFormState((prev: PostFormState) => ({
-        ...prev,
-        previewUrl: reader.result as string,
-        errors: { ...prev.errors, imageFile: undefined },
-      }));
-    };
-    reader.readAsDataURL(file);
-
-    setFormData((prev: PostFormData) => ({ ...prev, imageFile: file }));
-  };
-
   // 入力変更ハンドラー
   const handleInputChange = (
     e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -210,12 +179,12 @@ export default function PostForm({ onSuccess, onCancel, initialLatitude, initial
       errors.caption = 'キャプションは500文字以内で入力してください';
     }
 
-    if (!formData.regionId) {
-      errors.regionId = '地域を選択してください';
-    }
-
     if (formData.latitude === 0 && formData.longitude === 0) {
       errors.location = '位置情報を取得してください';
+    }
+
+    if (!formData.regionId) {
+      errors.regionId = '地域情報を取得してください';
     }
 
     setFormState((prev: PostFormState) => ({ ...prev, errors }));
@@ -245,7 +214,7 @@ export default function PostForm({ onSuccess, onCancel, initialLatitude, initial
       const postData: CreatePostData = {
         userId: user.uid,
         regionId: formData.regionId,
-        seasonId: getCurrentSeasonId(),
+        seasonId: currentSeasonId || getCurrentSeasonId(), // SeasonPostContextから取得したseasonIdを使用
         imageUrl: '', // 一時的に空
         caption: formData.caption.trim(),
         location: new GeoPoint(formData.latitude, formData.longitude),
@@ -289,83 +258,73 @@ export default function PostForm({ onSuccess, onCancel, initialLatitude, initial
   };
 
   return (
-    <div className="max-w-2xl mx-auto p-8 bg-gradient-to-br from-white/90 to-rose-50/80 backdrop-blur-sm rounded-3xl shadow-xl">
+    <div className="fixed inset-0 z-50 bg-gradient-to-br from-white to-rose-50 overflow-y-auto">
+      <div className="min-h-screen p-4 sm:p-6 md:p-8">
+      {isCameraOpen ? (
+        // カメラ画面（全画面プレビュー）
+        <div className="fixed inset-0 bg-black">
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className="w-full h-full object-cover"
+          />
+          <canvas ref={canvasRef} className="hidden" />
+          
+          {/* オーバーレイボタン */}
+          <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/80 to-transparent">
+            <div className="flex gap-4 max-w-lg mx-auto">
+              <button
+                type="button"
+                onClick={capturePhoto}
+                className="flex-1 px-8 py-4 bg-white text-gray-900 rounded-full hover:bg-gray-100 active:scale-95 transition-all duration-200 shadow-2xl font-bold flex items-center justify-center gap-3 text-lg"
+              >
+                <FaCamera className="h-6 w-6" />
+                撮影する
+              </button>
+              {onCancel && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    closeCamera();
+                    onCancel();
+                  }}
+                  className="px-8 py-4 bg-gray-800/90 backdrop-blur-sm text-white rounded-full hover:bg-gray-700 active:scale-95 transition-all duration-200 shadow-2xl flex items-center gap-3"
+                >
+                  <MdCancel className="h-6 w-6" />
+                  キャンセル
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : (
+        // 投稿フォーム
+        <div className="max-w-2xl mx-auto">
       <h2 className="text-3xl font-bold mb-8 bg-gradient-to-r from-rose-500 to-pink-500 bg-clip-text text-transparent">
         新規投稿
       </h2>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* 画像選択（カメラ起動） */}
+        {/* 撮影済み画像プレビュー */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            写真 <span className="text-red-500">*</span>
+            撮影した写真
           </label>
-          
-          {!isCameraOpen ? (
-            <>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={handleImageChange}
-                className="hidden"
-              />
-              <button
-                type="button"
-                onClick={openCamera}
-                className="w-full px-6 py-4 bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-2xl hover:from-rose-600 hover:to-pink-600 active:scale-95 transition-all duration-200 flex items-center justify-center gap-3 shadow-lg touch-manipulation"
-              >
-                <HiCamera className="h-6 w-6" />
-                カメラを起動
-              </button>
-            </>
-          ) : (
-            <div className="space-y-4">
-              <div className="relative bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl overflow-hidden shadow-xl">
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="w-full h-80 object-cover"
-                />
-                <canvas ref={canvasRef} className="hidden" />
-              </div>
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={capturePhoto}
-                  className="flex-1 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl hover:from-green-600 hover:to-emerald-600 active:scale-95 transition-all duration-200 shadow-lg font-medium flex items-center justify-center gap-2"
-                >
-                  <FaCamera className="h-5 w-5" />
-                  撮影する
-                </button>
-                <button
-                  type="button"
-                  onClick={closeCamera}
-                  className="px-6 py-3 bg-gray-500/80 backdrop-blur-sm text-white rounded-xl hover:bg-gray-600 active:scale-95 transition-all duration-200 shadow-lg flex items-center gap-2"
-                >
-                  <MdCancel className="h-5 w-5" />
-                  キャンセル
-                </button>
-              </div>
-            </div>
-          )}
-          
-          {formState.errors.imageFile && (
-            <p className="mt-1 text-sm text-red-600">
-              {formState.errors.imageFile}
-            </p>
-          )}
-          {formState.previewUrl && !isCameraOpen && (
+          {formState.previewUrl && (
             <div className="mt-4 rounded-2xl overflow-hidden shadow-lg">
               <img
                 src={formState.previewUrl}
                 alt="Preview"
-                className="w-full h-80 object-cover"
+                className="w-full aspect-video object-cover"
               />
             </div>
+          )}
+          {formState.errors.imageFile && (
+            <p className="mt-1 text-sm text-red-600">
+              {formState.errors.imageFile}
+            </p>
           )}
         </div>
 
@@ -399,35 +358,6 @@ export default function PostForm({ onSuccess, onCancel, initialLatitude, initial
               {formData.caption.length} / 500
             </p>
           </div>
-        </div>
-
-        {/* 地域選択 */}
-        <div>
-          <label
-            htmlFor="regionId"
-            className="block text-sm font-bold text-gray-700 mb-3"
-          >
-            地域 <span className="text-rose-500">*</span>
-          </label>
-          <select
-            id="regionId"
-            name="regionId"
-            value={formData.regionId}
-            onChange={handleInputChange}
-            className="w-full px-4 py-3 border-2 border-rose-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-400 focus:border-transparent transition-all duration-200 bg-white/50 backdrop-blur-sm text-black"
-          >
-            <option value="">地域を選択してください</option>
-            {REGION_OPTIONS.map((region) => (
-              <option key={region.id} value={region.id}>
-                {region.name}
-              </option>
-            ))}
-          </select>
-          {formState.errors.regionId && (
-            <p className="mt-1 text-sm text-red-600">
-              {formState.errors.regionId}
-            </p>
-          )}
         </div>
 
         {/* 位置情報 */}
@@ -485,8 +415,11 @@ export default function PostForm({ onSuccess, onCancel, initialLatitude, initial
               キャンセル
             </button>
           )}
+          </div>
+        </form>
         </div>
-      </form>
+      )}
+      </div>
     </div>
   );
 }
