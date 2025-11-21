@@ -1,10 +1,12 @@
-import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, serverTimestamp, collection, getDocs } from 'firebase/firestore';
 import { User } from 'firebase/auth';
-import { db } from '../lib/firebase';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { db, storage } from '../lib/firebase';
 import { 
   UserDocument, 
   CreateUserData, 
-  UpdateUserProfileData 
+  UpdateUserProfileData,
+  PostDocument
 } from '../types/firestore';
 
 /**
@@ -273,6 +275,125 @@ export class UserService {
       }
     } catch (error) {
       console.error('Error adding achievement:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * ユーザーがいいねした投稿IDの一覧を取得
+   */
+  static async getUserLikedPostIds(uid: string): Promise<string[]> {
+    try {
+      console.log('Fetching liked post IDs for user:', uid);
+      const likesRef = collection(db, 'users', uid, 'likes');
+      const likesSnapshot = await getDocs(likesRef);
+      
+      const likedPostIds = likesSnapshot.docs.map((doc) => doc.id);
+      console.log(`Found ${likedPostIds.length} liked posts`);
+      return likedPostIds;
+    } catch (error) {
+      console.error('Error fetching liked post IDs:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * ユーザーがいいねした投稿の詳細情報を取得
+   */
+  static async getUserLikedPosts(uid: string): Promise<Array<PostDocument & { id: string }>> {
+    try {
+      console.log('Fetching liked posts for user:', uid);
+      const likedPostIds = await this.getUserLikedPostIds(uid);
+      
+      if (likedPostIds.length === 0) {
+        return [];
+      }
+
+      const likedPosts: Array<PostDocument & { id: string }> = [];
+      
+      // 各投稿IDについて詳細情報を取得
+      for (const postId of likedPostIds) {
+        try {
+          const postRef = doc(db, 'posts', postId);
+          const postDoc = await getDoc(postRef);
+          
+          if (postDoc.exists()) {
+            likedPosts.push({
+              id: postDoc.id,
+              ...(postDoc.data() as PostDocument),
+            });
+          }
+        } catch (postError) {
+          console.warn(`Failed to fetch post ${postId}:`, postError);
+          // 1つの投稿の取得失敗は全体に影響させない
+        }
+      }
+
+      console.log(`Retrieved ${likedPosts.length} liked posts with details`);
+      return likedPosts;
+    } catch (error) {
+      console.error('Error fetching liked posts:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * ユーザーのアバター画像をアップロード
+   */
+  static async uploadAvatarImage(file: File, uid: string): Promise<string> {
+    try {
+      console.log('Uploading avatar image for user:', uid);
+      
+      // 旧アバター画像を取得（削除用）
+      const userDoc = await getDoc(doc(db, 'users', uid));
+      const oldPhotoURL = userDoc.exists() ? userDoc.data().photoURL : null;
+
+      const timestamp = Date.now();
+      const filename = `avatars/${uid}/${timestamp}_${file.name}`;
+      const storageRef = ref(storage, filename);
+
+      await uploadBytes(storageRef, file);
+      const downloadURL = await getDownloadURL(storageRef);
+
+      // Firestore にアバターURL を保存
+      await this.updateUserProfile(uid, { photoURL: downloadURL } as any);
+
+      // 旧アバター画像を削除（新しい画像の保存に成功した後）
+      if (oldPhotoURL) {
+        try {
+          // URL から Storage パスを抽出
+          const oldFileRef = ref(storage, this.extractStoragePath(oldPhotoURL));
+          await deleteObject(oldFileRef);
+          console.log('Old avatar image deleted successfully');
+        } catch (deleteError) {
+          console.warn('Failed to delete old avatar image:', deleteError);
+          // 旧画像の削除失敗は全体エラーにしない
+        }
+      }
+
+      console.log('Avatar image uploaded and saved successfully');
+      return downloadURL;
+    } catch (error) {
+      console.error('Error uploading avatar image:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Firebase Storage のダウンロード URL からファイルパスを抽出
+   */
+  private static extractStoragePath(downloadURL: string): string {
+    try {
+      // URL 形式: https://firebasestorage.googleapis.com/v0/b/{bucket}/o/{encoded_path}?...
+      const url = new URL(downloadURL);
+      const pathMatch = url.pathname.match(/\/o\/(.*?)(?:\?|$)/);
+      if (pathMatch) {
+        // URL デコード
+        return decodeURIComponent(pathMatch[1]);
+      }
+      throw new Error('Could not extract path from URL');
+    } catch (error) {
+      console.error('Error extracting storage path from URL:', error);
       throw error;
     }
   }
