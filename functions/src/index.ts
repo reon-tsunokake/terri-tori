@@ -8,8 +8,12 @@
  */
 
 import {setGlobalOptions} from "firebase-functions";
+import * as admin from "firebase-admin";
 // import {onRequest} from "firebase-functions/https";
 // import * as logger from "firebase-functions/logger";
+
+// Firebase Admin SDKの初期化
+admin.initializeApp();
 
 // Start writing functions
 // https://firebase.google.com/docs/functions/typescript
@@ -31,3 +35,9 @@ setGlobalOptions({ maxInstances: 10 });
 //   logger.info("Hello logs!", {structuredData: true});
 //   response.send("Hello from Firebase!");
 // });
+
+// シーズン更新用のスケジュール関数
+export { updateSeasonScheduled } from "./scheduledFunctions/updateSeason";
+
+// 日次ランキング更新用のスケジュール関数
+export { updateDailyRanking } from "./scheduledFunctions/updateDailyRanking";
