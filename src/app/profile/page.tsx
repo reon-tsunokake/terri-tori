@@ -8,12 +8,13 @@ import { useAuth } from '../../contexts/AuthContext';
 import { validateProfileForm } from '../../utils/validation';
 import BottomNavigation from '../../components/layout/BottomNavigation';
 import { getPosts } from '@/services/postService';
+import { UserService } from '@/services/userService';
 import type { PostDocument } from '@/types/firestore';
 import { FaCamera, FaHeart, FaTrophy, FaStar } from 'react-icons/fa';
 import { HiLocationMarker } from 'react-icons/hi';
 import { MdPerson, MdBarChart, MdPhotoLibrary } from 'react-icons/md';
 
-type TabType = 'personal' | 'status' | 'posts';
+type TabType = 'personal' | 'status' | 'posts' | 'likes';
 
 export default function ProfilePage() {
   const { user, userProfile, updateUserProfile, loading, logout } = useAuth();
@@ -24,7 +25,12 @@ export default function ProfilePage() {
   const [message, setMessage] = useState('');
   const [myPosts, setMyPosts] = useState<Array<PostDocument & { id: string }>>([]);
   const [postsLoading, setPostsLoading] = useState(true);
+  const [likedPosts, setLikedPosts] = useState<Array<PostDocument & { id: string }>>([]);
+  const [likedPostsLoading, setLikedPostsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('personal');
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -63,6 +69,27 @@ export default function ProfilePage() {
       fetchMyPosts();
     }
   }, [user]);
+
+  // いいねした投稿を取得（タブが'likes'に切り替わった時）
+  useEffect(() => {
+    const fetchLikedPosts = async () => {
+      if (!user || activeTab !== 'likes') return;
+      
+      try {
+        setLikedPostsLoading(true);
+        const posts = await UserService.getUserLikedPosts(user.uid);
+        setLikedPosts(posts);
+      } catch (error) {
+        console.error('プロフィール: いいね投稿取得エラー:', error);
+      } finally {
+        setLikedPostsLoading(false);
+      }
+    };
+
+    if (user) {
+      fetchLikedPosts();
+    }
+  }, [user, activeTab]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,6 +130,58 @@ export default function ProfilePage() {
     }
   };
 
+  // アバター画像ファイル選択時の処理
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // ファイル形式チェック
+    if (!file.type.startsWith('image/')) {
+      setMessage('画像ファイルを選択してください');
+      return;
+    }
+
+    // ファイルサイズチェック（5MB まで）
+    if (file.size > 5 * 1024 * 1024) {
+      setMessage('ファイルサイズは5MB以下にしてください');
+      return;
+    }
+
+    setAvatarFile(file);
+
+    // プレビュー表示
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setAvatarPreview(e.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // アバター画像アップロード
+  const handleAvatarUpload = async () => {
+    if (!avatarFile || !user) return;
+
+    setIsUploadingAvatar(true);
+    setMessage('');
+
+    try {
+      await UserService.uploadAvatarImage(avatarFile, user.uid);
+      setMessage('アバター画像を更新しました！');
+      setAvatarFile(null);
+      setAvatarPreview(null);
+      
+      // ページをリロードして新しいアバターを表示
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } catch (error) {
+      console.error('Avatar upload error:', error);
+      setMessage('アバター画像のアップロードに失敗しました');
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -131,11 +210,69 @@ export default function ProfilePage() {
           {userProfile && (
             <div className="p-6 border-b border-rose-100">
               <div className="text-center mb-6">
-                <div className="w-20 h-20 bg-gradient-to-r from-rose-400 to-pink-400 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <span className="text-white text-2xl font-bold">
-                    {(userProfile.displayName || user?.displayName || user?.email)?.[0]?.toUpperCase()}
-                  </span>
+                <div className="relative w-20 h-20 mx-auto mb-4">
+                  {/* アバター表示 */}
+                  {avatarPreview ? (
+                    <img 
+                      src={avatarPreview}
+                      alt="新しいアバター"
+                      className="w-full h-full rounded-full object-cover"
+                    />
+                  ) : userProfile.photoURL ? (
+                    <Image
+                      src={userProfile.photoURL}
+                      alt={userProfile.displayName}
+                      fill
+                      className="rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-r from-rose-400 to-pink-400 rounded-full flex items-center justify-center">
+                      <span className="text-white text-2xl font-bold">
+                        {(userProfile.displayName || user?.displayName || user?.email)?.[0]?.toUpperCase()}
+                      </span>
+                    </div>
+                  )}
+                  
+                  {/* 編集ボタン */}
+                  <label className="absolute bottom-0 right-0 bg-rose-500 hover:bg-rose-600 text-white rounded-full p-2 cursor-pointer shadow-lg transition-colors duration-200">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleAvatarChange}
+                      className="hidden"
+                      disabled={isUploadingAvatar}
+                    />
+                  </label>
                 </div>
+
+                {/* アバター画像アップロード UI */}
+                {avatarFile && (
+                  <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <p className="text-sm text-blue-700 mb-2">新しいアバター画像をアップロードします</p>
+                    <button
+                      onClick={handleAvatarUpload}
+                      disabled={isUploadingAvatar}
+                      className="w-full px-4 py-2 text-sm font-semibold bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-lg hover:from-rose-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+                    >
+                      {isUploadingAvatar ? 'アップロード中...' : 'アップロード'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setAvatarFile(null);
+                        setAvatarPreview(null);
+                      }}
+                      disabled={isUploadingAvatar}
+                      className="w-full mt-2 px-4 py-2 text-sm font-semibold bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+                    >
+                      キャンセル
+                    </button>
+                  </div>
+                )}
+
                 <h2 className="text-xl font-semibold text-gray-800 mb-1">
                   {userProfile.displayName || user?.displayName || user?.email?.split('@')[0]}
                 </h2>
@@ -194,6 +331,17 @@ export default function ProfilePage() {
             >
               <MdPhotoLibrary className="text-xl" />
               <span className="hidden sm:inline">投稿</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('likes')}
+              className={`flex-1 py-4 px-4 flex items-center justify-center gap-2 font-semibold transition-all duration-200 ${
+                activeTab === 'likes'
+                  ? 'bg-gradient-to-r from-rose-500 to-pink-500 text-white'
+                  : 'text-gray-600 hover:bg-rose-50'
+              }`}
+            >
+              <FaHeart className="text-xl" />
+              <span className="hidden sm:inline">いいね</span>
             </button>
           </div>
 
@@ -438,6 +586,70 @@ export default function ProfilePage() {
                   className="inline-block px-6 py-3 bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-xl hover:from-rose-600 hover:to-pink-600 transition-all duration-300 shadow-lg text-sm font-medium"
                 >
                   最初の投稿をする
+                </Link>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* いいねタブ */}
+        {activeTab === 'likes' && (
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
+                <FaHeart className="text-rose-500" /> いいね
+              </h3>
+              <span className="text-sm text-gray-500 bg-rose-50 px-3 py-1 rounded-full">{likedPosts.length}件</span>
+            </div>
+
+            {likedPostsLoading ? (
+              <div className="text-center py-12 text-gray-500">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-500 mx-auto mb-3"></div>
+                <p className="text-sm">読み込み中...</p>
+              </div>
+            ) : likedPosts.length > 0 ? (
+              <div className="grid grid-cols-3 gap-2">
+                {likedPosts.map((post) => (
+                  <div
+                    key={post.id}
+                    className="aspect-square relative rounded-lg overflow-hidden bg-gray-100 cursor-pointer hover:opacity-80 transition-opacity group"
+                  >
+                    {post.imageUrl ? (
+                      <Image
+                        src={post.imageUrl}
+                        alt={post.caption}
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 640px) 33vw, 150px"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-rose-100 to-pink-100">
+                        <FaCamera className="text-rose-300 text-3xl" />
+                      </div>
+                    )}
+                    
+                    {/* ホバー時のオーバーレイ */}
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <div className="text-white text-center text-xs">
+                        <div className="flex items-center justify-center gap-3">
+                          <span className="flex items-center gap-1">
+                            <FaHeart className="text-red-400" /> {post.likesCount || 0}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <FaHeart className="text-6xl mb-4 mx-auto text-rose-300" />
+                <p className="text-gray-500 mb-4">まだいいねした投稿がありません</p>
+                <Link
+                  href="/"
+                  className="inline-block px-6 py-3 bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-xl hover:from-rose-600 hover:to-pink-600 transition-all duration-300 shadow-lg text-sm font-medium"
+                >
+                  投稿を探す
                 </Link>
               </div>
             )}
