@@ -282,7 +282,7 @@ export default function ProfilePage() {
               {/* フォロー関係の情報 */}
               <div className="flex justify-center space-x-8 py-4 bg-rose-50 rounded-xl">
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-rose-500">{userProfile.postCount}</div>
+                  <div className="text-2xl font-bold text-rose-500">{myPosts.length}</div>
                   <div className="text-sm text-gray-600">投稿</div>
                 </div>
                 <div className="text-center">
@@ -308,7 +308,6 @@ export default function ProfilePage() {
               }`}
             >
               <MdPerson className="text-xl" />
-              <span className="hidden sm:inline">個人情報</span>
             </button>
             <button
               onClick={() => setActiveTab('status')}
@@ -319,7 +318,6 @@ export default function ProfilePage() {
               }`}
             >
               <MdBarChart className="text-xl" />
-              <span className="hidden sm:inline">ステータス</span>
             </button>
             <button
               onClick={() => setActiveTab('posts')}
@@ -330,7 +328,6 @@ export default function ProfilePage() {
               }`}
             >
               <MdPhotoLibrary className="text-xl" />
-              <span className="hidden sm:inline">投稿</span>
             </button>
             <button
               onClick={() => setActiveTab('likes')}
@@ -341,7 +338,6 @@ export default function ProfilePage() {
               }`}
             >
               <FaHeart className="text-xl" />
-              <span className="hidden sm:inline">いいね</span>
             </button>
           </div>
 
@@ -475,30 +471,6 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            {/* 統計情報 */}
-            <div className="grid grid-cols-3 gap-4 mb-6">
-              <div className="text-center p-4 bg-rose-50 rounded-xl">
-                <div className="flex justify-center items-center mb-2">
-                  <FaCamera className="text-rose-500 text-2xl" />
-                </div>
-                <div className="text-2xl font-bold text-gray-800">{userProfile.postCount || 0}</div>
-                <div className="text-sm text-gray-600">投稿</div>
-              </div>
-              <div className="text-center p-4 bg-pink-50 rounded-xl">
-                <div className="flex justify-center items-center mb-2">
-                  <FaHeart className="text-pink-500 text-2xl" />
-                </div>
-                <div className="text-2xl font-bold text-gray-800">{userProfile.followerCount || 0}</div>
-                <div className="text-sm text-gray-600">いいね</div>
-              </div>
-              <div className="text-center p-4 bg-amber-50 rounded-xl">
-                <div className="flex justify-center items-center mb-2">
-                  <FaTrophy className="text-amber-500 text-2xl" />
-                </div>
-                <div className="text-2xl font-bold text-gray-800">{(userProfile.achievements || []).length}</div>
-                <div className="text-sm text-gray-600">実績</div>
-              </div>
-            </div>
 
             {/* 実績一覧 */}
             <div>
