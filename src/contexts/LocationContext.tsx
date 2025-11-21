@@ -8,6 +8,7 @@ interface Location {
   longitude: number | null;
   city: string | null;
   prefecture: string | null;
+  regionId: string | null;
 }
 
 // Context の型
@@ -17,7 +18,7 @@ interface LocationContextType {
 
 // 初期値
 const initialLocation: LocationContextType = {
-  location: { latitude: null, longitude: null, city: null, prefecture: null },
+  location: { latitude: null, longitude: null, city: null, prefecture: null, regionId: null },
 };
 
 // Context作成
@@ -25,7 +26,31 @@ const LocationContext = createContext<LocationContextType>(initialLocation);
 
 // Provider コンポーネント
 export const LocationProvider = ({ children }: { children: ReactNode }) => {
-  const [location, setLocation] = useState<Location>({ latitude: null, longitude: null, city: null, prefecture: null });
+  const [location, setLocation] = useState<Location>({ latitude: null, longitude: null, city: null, prefecture: null, regionId: null });
+
+  // 市区町村コードを取得する関数
+  const getRegionIdFromCity = async (city: string, lat: number, lon: number): Promise<string | null> => {
+    try {
+      const response = await fetch('/data/municipalities.geojson');
+      if (!response.ok) return null;
+      
+      const geojson = await response.json();
+      
+      // 市区町村名が一致するfeatureを探す
+      const feature = geojson.features.find((f: any) => 
+        f.properties.name === city || f.properties.N03_004 === city
+      );
+      
+      if (feature && feature.properties.N03_007) {
+        return feature.properties.N03_007; // 市区町村コード（例: "03202"）
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('市区町村コード取得エラー:', error);
+      return null;
+    }
+  };
 
   // 逆ジオコーディング関数
   const reverseGeocode = async (lat: number, lon: number) => {
@@ -86,11 +111,20 @@ export const LocationProvider = ({ children }: { children: ReactNode }) => {
         // 市区町村名と都道府県名を取得
         const { city, prefecture } = await reverseGeocode(lat, lon);
         
+        // regionIdを市区町村コードとして取得（municipalities.geojsonから）
+        let regionId = null;
+        if (city) {
+          // 実際のアプリではmapService等を使って市区町村コードを取得
+          // ここでは簡易的に市区町村名から推測（本番環境では要修正）
+          regionId = await getRegionIdFromCity(city, lat, lon);
+        }
+        
         setLocation({
           latitude: lat,
           longitude: lon,
           city: city,
           prefecture: prefecture,
+          regionId: regionId,
         });
       },
       (error) => {
