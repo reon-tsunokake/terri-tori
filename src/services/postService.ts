@@ -15,6 +15,8 @@ import {
   increment,
   serverTimestamp,
   QueryConstraint,
+  setDoc,
+  writeBatch,
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase';
@@ -165,11 +167,12 @@ export async function toggleLike(
   try {
     const postRef = doc(db, POSTS_COLLECTION, postId);
     const likeRef = doc(db, POSTS_COLLECTION, postId, LIKES_SUBCOLLECTION, userId);
+    const batch = writeBatch(db);
 
     if (isLiked) {
       // いいねを削除
-      await deleteDoc(likeRef);
-      await updateDoc(postRef, {
+      batch.delete(likeRef);
+      batch.update(postRef, {
         likesCount: increment(-1),
         score: increment(-1),
       });
@@ -179,12 +182,14 @@ export async function toggleLike(
         userId,
         createdAt: serverTimestamp(),
       };
-      await addDoc(collection(db, POSTS_COLLECTION, postId, LIKES_SUBCOLLECTION), likeData);
-      await updateDoc(postRef, {
+      batch.set(likeRef, likeData);
+      batch.update(postRef, {
         likesCount: increment(1),
         score: increment(1),
       });
     }
+
+    await batch.commit();
   } catch (error) {
     console.error('Error toggling like:', error);
     throw error;
