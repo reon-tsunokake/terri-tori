@@ -2,37 +2,71 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // ユーザー情報のルール
+
+    // ユーザー情報
     match /users/{userId} {
-      // 認証済みユーザーのみ自分のドキュメントの読み書きが可能
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-      // 認証済みユーザーは他のユーザーの基本情報（プロフィール）を読み取り可能
       allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
-    
-    // 投稿のルール
+
+    // 投稿
     match /posts/{postId} {
-      // 認証済みユーザーは投稿を読み取り可能
       allow read: if request.auth != null;
-      // 認証済みユーザーは投稿を作成可能（自分のuserIdが含まれていること）
+
+      // 投稿作成
       allow create: if request.auth != null 
                     && request.resource.data.userId == request.auth.uid
                     && request.resource.data.keys().hasAll(['userId', 'regionId', 'seasonId', 'caption', 'location']);
-      // 投稿者のみが自分の投稿を更新・削除可能
-      allow update, delete: if request.auth != null 
-                            && resource.data.userId == request.auth.uid;
-      
-      // いいねのサブコレクション
-      match /likes/{likeId} {
-        // 認証済みユーザーはいいねを読み取り可能
+
+      // 投稿の更新：投稿者本人の編集 OR いいねによるlikesCount/scoreの更新
+      allow update: if request.auth != null && (
+        // 投稿者本人による編集
+        (resource.data.userId == request.auth.uid)
+        ||
+        // いいねによるlikesCount/scoreの更新のみ許可
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likesCount', 'score'])
+         && request.resource.data.userId == resource.data.userId)
+      );
+
+      // 投稿者本人のみ削除
+      allow delete: if request.auth != null 
+                    && resource.data.userId == request.auth.uid;
+
+      // likesサブコレクション
+      match /likes/{userId} {
         allow read: if request.auth != null;
-        // 認証済みユーザーは自分のいいねを作成・削除可能
-        allow create, delete: if request.auth != null 
-                              && request.auth.uid == likeId;
+
+        // 作成：自分のUIDのみ、userId と createdAt のみ許可
+        allow create: if request.auth != null
+                      && request.auth.uid == userId
+                      && request.resource.data.keys().hasOnly(['userId', 'createdAt'])
+                      && request.resource.data.userId == request.auth.uid
+                      && request.resource.data.createdAt is timestamp;
+
+        // 削除：自分の like のみ
+        allow delete: if request.auth != null
+                      && request.auth.uid == userId;
       }
     }
-    
-    // その他のコレクションへのアクセスを制限
+
+    // シーズン
+    match /seasons/{seasonId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+
+      match /regionTop/{regionId} {
+        allow read: if request.auth != null;
+        allow write: if false;
+      }
+    }
+
+    // 地域
+    match /regions/{regionId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // fallback
     match /{document=**} {
       allow read, write: if false;
     }

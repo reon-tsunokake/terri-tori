@@ -9,7 +9,8 @@ import Header from '../../components/layout/Header';
 import BottomNavigation from '../../components/layout/BottomNavigation';
 import { PostDocument, UserDocument } from '../../types/firestore';
 import { getMunicipalityName, getPrefectureName } from '../../utils/location';
-import { checkIfUserLiked, toggleLike } from '../../services/postService';
+import { checkIfUserLiked } from '../../services/likeService';
+import LikeButton from '../../components/LikeButton/LikeButton';
 
 // ランキング表示用に型を拡張
 type RankingPostData = Omit<PostDocument, 'location'> & {
@@ -142,10 +143,11 @@ export default function RankingPage() {
     }));
 
     try {
+      const { toggleLike } = await import('../../services/likeService');
       await toggleLike(postId, user.uid, currentIsLiked);
     } catch (error) {
       console.error('Error toggling like:', error);
-      // エラー時は元に戻す（必要なら）
+      // エラー時は元に戻す
       setPosts(prevPosts => prevPosts.map(post => {
         if (post.id === postId) {
           return {
@@ -301,16 +303,14 @@ export default function RankingPage() {
                   </div>
 
                   {/* 4. いいね数 */}
-                  <div className="flex-shrink-0 w-16 text-right mr-4">
-                    <button
+                  <div className="flex-shrink-0 text-right mr-4">
+                    <LikeButton
+                      isLiked={!!post.isLiked}
+                      likesCount={post.likesCount}
                       onClick={() => handleLike(post.id, !!post.isLiked)}
-                      className={`flex items-center justify-end transition-colors ${post.isLiked ? 'text-red-500' : 'text-gray-400 hover:text-red-400'}`}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1 fill-current" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
-                      </svg>
-                      <span className="font-bold text-sm">{post.likesCount}</span>
-                    </button>
+                      showCount={true}
+                      className="justify-end"
+                    />
                   </div>
 
                   {/* 5. 写真 (クリックで詳細へ) */}
