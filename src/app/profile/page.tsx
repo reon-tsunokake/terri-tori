@@ -29,7 +29,6 @@ export default function ProfilePage() {
   const [likedPostsLoading, setLikedPostsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('personal');
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const router = useRouter();
 
@@ -130,10 +129,10 @@ export default function ProfilePage() {
     }
   };
 
-  // アバター画像ファイル選択時の処理
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // アバター画像ファイル選択時の処理（自動アップロード）
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !user) return;
 
     // ファイル形式チェック
     if (!file.type.startsWith('image/')) {
@@ -147,28 +146,20 @@ export default function ProfilePage() {
       return;
     }
 
-    setAvatarFile(file);
-
-    // プレビュー表示
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setAvatarPreview(e.target?.result as string);
-    };
-    reader.readAsDataURL(file);
-  };
-
-  // アバター画像アップロード
-  const handleAvatarUpload = async () => {
-    if (!avatarFile || !user) return;
-
     setIsUploadingAvatar(true);
     setMessage('');
 
     try {
-      await UserService.uploadAvatarImage(avatarFile, user.uid);
+      // プレビュー表示
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setAvatarPreview(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+
+      // アップロード実行
+      await UserService.uploadAvatarImage(file, user.uid);
       setMessage('アバター画像を更新しました！');
-      setAvatarFile(null);
-      setAvatarPreview(null);
       
       // ページをリロードして新しいアバターを表示
       setTimeout(() => {
@@ -177,6 +168,7 @@ export default function ProfilePage() {
     } catch (error) {
       console.error('Avatar upload error:', error);
       setMessage('アバター画像のアップロードに失敗しました');
+      setAvatarPreview(null);
     } finally {
       setIsUploadingAvatar(false);
     }
@@ -248,30 +240,6 @@ export default function ProfilePage() {
                     />
                   </label>
                 </div>
-
-                {/* アバター画像アップロード UI */}
-                {avatarFile && (
-                  <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                    <p className="text-sm text-blue-700 mb-2">新しいアバター画像をアップロードします</p>
-                    <button
-                      onClick={handleAvatarUpload}
-                      disabled={isUploadingAvatar}
-                      className="w-full px-4 py-2 text-sm font-semibold bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-lg hover:from-rose-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
-                    >
-                      {isUploadingAvatar ? 'アップロード中...' : 'アップロード'}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setAvatarFile(null);
-                        setAvatarPreview(null);
-                      }}
-                      disabled={isUploadingAvatar}
-                      className="w-full mt-2 px-4 py-2 text-sm font-semibold bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
-                    >
-                      キャンセル
-                    </button>
-                  </div>
-                )}
 
                 <h2 className="text-xl font-semibold text-gray-800 mb-1">
                   {userProfile.displayName || user?.displayName || user?.email?.split('@')[0]}
@@ -618,7 +586,7 @@ export default function ProfilePage() {
                 <FaHeart className="text-6xl mb-4 mx-auto text-rose-300" />
                 <p className="text-gray-500 mb-4">まだいいねした投稿がありません</p>
                 <Link
-                  href="/"
+                  href="../ranking"
                   className="inline-block px-6 py-3 bg-gradient-to-r from-rose-500 to-pink-500 text-white rounded-xl hover:from-rose-600 hover:to-pink-600 transition-all duration-300 shadow-lg text-sm font-medium"
                 >
                   投稿を探す
