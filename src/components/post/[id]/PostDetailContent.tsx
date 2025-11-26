@@ -1,13 +1,52 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { PostDocument } from '../../../types/firestore';
+import { getMunicipalityName, getPrefectureName } from '../../../utils/location';
+import { fetchLikeStatus, useToggleLike } from '../../../hooks/useToggleLike';
+import { useAuth } from '../../../contexts/AuthContext';
+import LikeButton from '../../LikeButton/LikeButton';
 
 interface PostDetailContentProps {
   post: PostDocument & { id: string };
 }
 
 export default function PostDetailContent({ post }: PostDetailContentProps) {
+  const { user } = useAuth();
+  const [locationName, setLocationName] = useState<string>('場所不明');
+  const [prefectureName, setPrefectureName] = useState<string>('');
+  const [initialIsLiked, setInitialIsLiked] = useState(false);
+  const [isLoadingLikeStatus, setIsLoadingLikeStatus] = useState(true);
+
+  const { isLiked, likesCount, isLoading, handleToggleLike } = useToggleLike({
+    postId: post.id,
+    initialIsLiked,
+    initialLikesCount: post.likesCount || 0,
+  });
+
+  useEffect(() => {
+    const fetchLocation = async () => {
+      if (post.regionId) {
+        const municipality = await getMunicipalityName(post.regionId);
+        const prefecture = await getPrefectureName(post.regionId);
+        if (municipality) setLocationName(municipality);
+        if (prefecture) setPrefectureName(prefecture);
+      }
+    };
+    fetchLocation();
+  }, [post.regionId]);
+
+  useEffect(() => {
+    const checkLikeStatus = async () => {
+      if (user && post.id) {
+        const liked = await fetchLikeStatus(post.id, user.uid);
+        setInitialIsLiked(liked);
+      }
+      setIsLoadingLikeStatus(false);
+    };
+    checkLikeStatus();
+  }, [user, post.id]);
+
   return (
     <div className="bg-white">
       {/* 写真エリア */}
@@ -29,10 +68,10 @@ export default function PostDetailContent({ post }: PostDetailContentProps) {
           <div>
             {/* Location情報 */}
             <h2 className="text-xl font-bold text-gray-900">
-              {(post as any).location?.municipality || '場所不明'}
+              {locationName}
             </h2>
             <p className="text-sm text-gray-500">
-              {(post as any).location?.prefecture || ''}
+              {prefectureName}
             </p>
           </div>
           {/* Season情報 */}
@@ -45,11 +84,13 @@ export default function PostDetailContent({ post }: PostDetailContentProps) {
 
         {/* いいね数などのメタデータ */}
         <div className="flex items-center text-gray-600 text-sm border-y border-gray-50 py-3">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1 text-red-500" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
-          </svg>
-          <span className="font-medium mr-4">{(post as any).likesCount || 0} いいね</span>
-          
+          <LikeButton
+            isLiked={isLiked}
+            likesCount={likesCount}
+            onClick={handleToggleLike}
+            disabled={isLoading || isLoadingLikeStatus}
+          />
+
           <span className="text-gray-400 text-xs ml-auto">
             {post.createdAt ? new Date(post.createdAt.seconds * 1000).toLocaleDateString() : ''}
           </span>
@@ -57,12 +98,11 @@ export default function PostDetailContent({ post }: PostDetailContentProps) {
 
         {/* コメント・キャプション */}
         <div className="pt-2">
-           <p className="text-gray-800 text-sm leading-relaxed whitespace-pre-wrap">
-             {(post as any).comment || (post as any).content || "コメントはありません"}
-           </p>
+          <p className="text-gray-800 text-sm leading-relaxed whitespace-pre-wrap">
+            {post.caption || "コメントはありません"}
+          </p>
         </div>
       </div>
     </div>
   );
 }
-

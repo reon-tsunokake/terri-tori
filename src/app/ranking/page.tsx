@@ -1,28 +1,29 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, doc, getDoc } from 'firebase/firestore';
 // 相対パスの修正: src/app/ranking/ から src/ は2階層上 (../../)
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../contexts/AuthContext';
 import Header from '../../components/layout/Header';
 import BottomNavigation from '../../components/layout/BottomNavigation';
-import { PostDocument } from '../../types/firestore';
+import { PostDocument, UserDocument } from '../../types/firestore';
+import { getMunicipalityName, getPrefectureName } from '../../utils/location';
+import { checkIfUserLiked } from '../../services/likeService';
+import LikeButton from '../../components/LikeButton/LikeButton';
 
 // ランキング表示用に型を拡張
 type RankingPostData = Omit<PostDocument, 'location'> & {
   id: string;
-  location?: {
-    municipality?: string;
-    prefecture?: string;
-    name?: string;
-  };
+  locationName?: string; // 市区町村名
+  prefectureName?: string; // 都道府県名
   author?: {
     displayName?: string;
     photoURL?: string;
     uid?: string;
   };
   authorId?: string;
+  isLiked?: boolean; // ログインユーザーがいいねしているか
 }
 
 export default function RankingPage() {
@@ -41,17 +42,76 @@ export default function RankingPage() {
         // 全件取得後にクライアントでソート・フィルタリング
         const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'));
         const querySnapshot = await getDocs(q);
-        
-        const fetchedPosts: RankingPostData[] = querySnapshot.docs.map(doc => {
-          const data = doc.data();
+
+        // ユーザーデータのキャッシュ
+        const userCache = new Map<string, UserDocument>();
+
+        const fetchedPostsPromises = querySnapshot.docs.map(async (docSnapshot) => {
+          const data = docSnapshot.data() as PostDocument;
+
+          // ユーザー情報の取得
+          let authorData = { displayName: 'Unknown User', photoURL: '', uid: data.userId };
+          if (data.userId) {
+            if (userCache.has(data.userId)) {
+              const cachedUser = userCache.get(data.userId);
+              if (cachedUser) {
+                authorData = {
+                  displayName: cachedUser.displayName,
+                  photoURL: cachedUser.photoURL || '',
+                  uid: cachedUser.uid
+                };
+              }
+            } else {
+              try {
+                const userDocRef = doc(db, 'users', data.userId);
+                const userDocSnap = await getDoc(userDocRef);
+                if (userDocSnap.exists()) {
+                  const userData = userDocSnap.data() as UserDocument;
+                  userCache.set(data.userId, userData);
+                  authorData = {
+                    displayName: userData.displayName,
+                    photoURL: userData.photoURL || '',
+                    uid: userData.uid
+                  };
+                }
+              } catch (e) {
+                console.error(`Error fetching user ${data.userId}:`, e);
+              }
+            }
+          }
+
+          // 場所情報の取得
+          let locationName = 'Unknown Location';
+          let prefectureName = '';
+          if (data.regionId) {
+            const municipality = await getMunicipalityName(data.regionId);
+            const prefecture = await getPrefectureName(data.regionId);
+            if (municipality) locationName = municipality;
+            if (prefecture) prefectureName = prefecture;
+          }
+
+          // いいね状態の取得
+          let isLiked = false;
+          if (user) {
+            try {
+              isLiked = await checkIfUserLiked(docSnapshot.id, user.uid);
+            } catch (e) {
+              console.error(`Error checking like status for ${docSnapshot.id}:`, e);
+            }
+          }
+
           return {
-            id: doc.id,
+            id: docSnapshot.id,
             ...data,
-            // いいね数がない場合のフォールバック
-            likesCount: data.likesCount || 0, 
+            likesCount: data.likesCount || 0,
+            author: authorData,
+            locationName,
+            prefectureName,
+            isLiked,
           } as RankingPostData;
         });
 
+        const fetchedPosts = await Promise.all(fetchedPostsPromises);
         setPosts(fetchedPosts);
       } catch (error) {
         console.error("Error fetching ranking data:", error);
@@ -61,13 +121,54 @@ export default function RankingPage() {
     };
 
     fetchPosts();
-  }, []);
+  }, [user]); // userが変わったら再取得（いいね状態更新のため）
+
+  // --- いいねハンドラ ---
+  const handleLike = async (postId: string, currentIsLiked: boolean) => {
+    if (!user) {
+      alert('いいねするにはログインが必要です');
+      return;
+    }
+
+    // 楽観的UI更新
+    setPosts(prevPosts => prevPosts.map(post => {
+      if (post.id === postId) {
+        return {
+          ...post,
+          isLiked: !currentIsLiked,
+          likesCount: currentIsLiked ? (post.likesCount - 1) : (post.likesCount + 1)
+        };
+      }
+      return post;
+    }));
+
+    try {
+      const { toggleLike } = await import('../../services/likeService');
+      await toggleLike(postId, user.uid, currentIsLiked);
+    } catch (error) {
+      console.error('Error toggling like:', error);
+      // エラー時は元に戻す
+      setPosts(prevPosts => prevPosts.map(post => {
+        if (post.id === postId) {
+          return {
+            ...post,
+            isLiked: currentIsLiked,
+            likesCount: currentIsLiked ? (post.likesCount + 1) : (post.likesCount - 1)
+          };
+        }
+        return post;
+      }));
+      alert('いいねの更新に失敗しました');
+    }
+  };
 
   // --- フィルター選択肢の生成 ---
   const municipalityOptions = useMemo(() => {
     const set = new Set<string>();
     posts.forEach(p => {
-      if (p.location?.municipality) set.add(p.location.municipality);
+      if (p.locationName && p.locationName !== 'Unknown Location') {
+        set.add(p.locationName);
+      }
     });
     return Array.from(set).sort();
   }, [posts]);
@@ -86,7 +187,7 @@ export default function RankingPage() {
 
     // 1. 地域フィルタ
     if (selectedMunicipality !== 'all') {
-      result = result.filter(p => p.location?.municipality === selectedMunicipality);
+      result = result.filter(p => p.locationName === selectedMunicipality);
     }
 
     // 2. シーズンフィルタ
@@ -155,7 +256,7 @@ export default function RankingPage() {
               const rank = index + 1;
 
               return (
-                <div 
+                <div
                   key={post.id}
                   className={`
                     flex items-center bg-white rounded-xl p-3 shadow-sm border
@@ -177,9 +278,9 @@ export default function RankingPage() {
                   <a href="#" className="flex-shrink-0 mr-3 relative">
                     <div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden border border-gray-200">
                       {post.author?.photoURL ? (
-                        <img 
-                          src={post.author.photoURL} 
-                          alt={post.author.displayName || "User"} 
+                        <img
+                          src={post.author.photoURL}
+                          alt={post.author.displayName || "User"}
                           className="w-full h-full object-cover"
                         />
                       ) : (
@@ -197,27 +298,28 @@ export default function RankingPage() {
                       {post.author?.displayName || "Unknown User"}
                     </p>
                     <p className="text-xs text-gray-500 truncate">
-                      {post.location?.municipality || "Unknown Location"}
+                      {post.locationName || "Unknown Location"}
                     </p>
                   </div>
 
                   {/* 4. いいね数 */}
-                  <div className="flex-shrink-0 w-16 text-right mr-4">
-                    <div className="flex items-center justify-end text-red-500">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 fill-current" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
-                      </svg>
-                      <span className="font-bold text-sm">{post.likesCount}</span>
-                    </div>
+                  <div className="flex-shrink-0 text-right mr-4">
+                    <LikeButton
+                      isLiked={!!post.isLiked}
+                      likesCount={post.likesCount}
+                      onClick={() => handleLike(post.id, !!post.isLiked)}
+                      showCount={true}
+                      className="justify-end"
+                    />
                   </div>
 
                   {/* 5. 写真 (クリックで詳細へ) */}
                   <a href={`/post/${post.id}`} className="flex-shrink-0 block hover:opacity-80 transition-opacity">
                     <div className="w-16 h-16 rounded-lg bg-gray-100 overflow-hidden border border-gray-200">
                       {post.imageUrl ? (
-                        <img 
-                          src={post.imageUrl} 
-                          alt="Post thumbnail" 
+                        <img
+                          src={post.imageUrl}
+                          alt="Post thumbnail"
                           className="w-full h-full object-cover"
                         />
                       ) : (

@@ -12,21 +12,19 @@ import {
   limit,
   Timestamp,
   GeoPoint,
-  increment,
   serverTimestamp,
   QueryConstraint,
+  setDoc,
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase';
 import {
   PostDocument,
   CreatePostData,
-  PostLikeDocument,
 } from '@/types/firestore';
 
 // コレクション名
 const POSTS_COLLECTION = 'posts';
-const LIKES_SUBCOLLECTION = 'likes';
 
 /**
  * 投稿を作成
@@ -150,60 +148,6 @@ export async function getPosts(options?: {
     }));
   } catch (error) {
     console.error('Error getting posts:', error);
-    throw error;
-  }
-}
-
-/**
- * いいねを追加/削除
- */
-export async function toggleLike(
-  postId: string,
-  userId: string,
-  isLiked: boolean
-): Promise<void> {
-  try {
-    const postRef = doc(db, POSTS_COLLECTION, postId);
-    const likeRef = doc(db, POSTS_COLLECTION, postId, LIKES_SUBCOLLECTION, userId);
-
-    if (isLiked) {
-      // いいねを削除
-      await deleteDoc(likeRef);
-      await updateDoc(postRef, {
-        likesCount: increment(-1),
-        score: increment(-1),
-      });
-    } else {
-      // いいねを追加
-      const likeData: Omit<PostLikeDocument, 'createdAt'> & { createdAt: any } = {
-        userId,
-        createdAt: serverTimestamp(),
-      };
-      await addDoc(collection(db, POSTS_COLLECTION, postId, LIKES_SUBCOLLECTION), likeData);
-      await updateDoc(postRef, {
-        likesCount: increment(1),
-        score: increment(1),
-      });
-    }
-  } catch (error) {
-    console.error('Error toggling like:', error);
-    throw error;
-  }
-}
-
-/**
- * ユーザーが投稿にいいねしているか確認
- */
-export async function checkIfUserLiked(
-  postId: string,
-  userId: string
-): Promise<boolean> {
-  try {
-    const likeRef = doc(db, POSTS_COLLECTION, postId, LIKES_SUBCOLLECTION, userId);
-    const likeSnap = await getDoc(likeRef);
-    return likeSnap.exists();
-  } catch (error) {
-    console.error('Error checking like status:', error);
     throw error;
   }
 }
