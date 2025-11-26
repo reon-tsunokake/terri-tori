@@ -2,7 +2,17 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    // ユーザープロフィール画像
+    // ユーザープロフィール画像（avatars）
+    match /avatars/{userId}/{allPaths=**} {
+      // 認証済みユーザーは自分のアバターを読み書き可能
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+                   && request.auth.uid == userId
+                   && request.resource.size < 5 * 1024 * 1024  // 5MB以下
+                   && request.resource.contentType.matches('image/.*');
+    }
+
+    // ユーザープロフィール画像（従来パス）
     match /users/{userId}/{allPaths=**} {
       // 認証済みユーザーは自分のプロフィール画像を読み書き可能
       allow read: if request.auth != null;

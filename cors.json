@@ -1,0 +1,24 @@
+[
+  {
+    "origin": [
+      "https://terri-tori-azure.vercel.app",
+      "http://localhost:3000"
+    ],
+    "method": [
+      "GET",
+      "POST",
+      "PUT",
+      "HEAD",
+      "DELETE",
+      "OPTIONS"
+    ],
+    "responseHeader": [
+      "Content-Type",
+      "Authorization",
+      "X-Goog-Upload-Protocol",
+      "X-Goog-Upload-Header",
+      "x-goog-resumable"
+    ],
+    "maxAgeSeconds": 3600
+  }
+]
