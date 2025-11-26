@@ -6,31 +6,82 @@
 
 ```
 src/
-├── app/                    # Next.js App Router - UIレイヤー
-│   ├── globals.css        # グローバルスタイル（TailwindCSS v4）
-│   ├── layout.tsx         # ルートレイアウト
-│   ├── page.tsx           # ホームページ
+├── app/                         # Next.js App Router - UIレイヤー
+│   ├── globals.css             # グローバルスタイル（TailwindCSS v4）
+│   ├── layout.tsx              # ルートレイアウト
+│   ├── page.tsx                # ホームページ（マップビュー）
 │   ├── login/
-│   │   └── page.tsx       # ログインページ
+│   │   └── page.tsx            # ログインページ
 │   ├── signup/
-│   │   └── page.tsx       # サインアップページ
-│   └── profile/
-│       └── page.tsx       # プロフィール編集ページ
-├── components/            # 再利用可能なUIコンポーネント
-│   └── layout/
-│       └── BottomNavigation.tsx  # ボトムナビゲーション
-├── contexts/              # React Context - 状態管理レイヤー
-│   └── AuthContext.tsx    # 認証状態の管理（ビジネスロジックは含まない）
-├── lib/                   # ライブラリ設定
-│   └── firebase.ts        # Firebase設定とインスタンス
-├── services/              # ビジネスロジックレイヤー
-│   ├── authService.ts     # Firebase認証操作
-│   └── userService.ts     # Firestoreユーザー操作
-├── types/                 # 型定義レイヤー
-│   ├── auth.ts            # 認証関連の型定義
-│   └── firestore.ts       # Firestoreドキュメント構造の型定義
-└── utils/                 # ユーティリティレイヤー
-    └── validation.ts      # フォームバリデーション機能
+│   │   └── page.tsx            # サインアップページ
+│   ├── profile/
+│   │   └── page.tsx            # プロフィールページ
+│   ├── post/
+│   │   ├── page.tsx            # 投稿作成ページ
+│   │   └── [id]/
+│   │       └── page.tsx        # 投稿詳細ページ
+│   ├── ranking/
+│   │   └── page.tsx            # ランキングページ
+│   └── search/
+│       └── page.tsx            # 検索ページ
+├── components/                  # 再利用可能なUIコンポーネント
+│   ├── Forms/
+│   │   └── PostForm.tsx        # 投稿フォーム
+│   ├── layout/
+│   │   ├── BottomNavigation.tsx    # ボトムナビゲーション
+│   │   ├── CameraButton.tsx        # カメラボタン
+│   │   ├── Header.tsx              # ヘッダー
+│   │   ├── LocationDisplay.tsx     # 位置情報表示
+│   │   └── SemiModal.tsx           # セミモーダル
+│   ├── LikeButton/
+│   │   └── LikeButton.tsx      # いいねボタン（再利用可能）
+│   ├── map/
+│   │   └── MapContainer.tsx    # 地図コンテナ
+│   └── post/
+│       └── [id]/
+│           ├── PostDetailContent.tsx    # 投稿詳細コンテンツ
+│           ├── PostDetailHeader.tsx     # 投稿詳細ヘッダー
+│           └── PostDetailPage.tsx       # 投稿詳細ページ
+├── contexts/                    # React Context - 状態管理レイヤー
+│   ├── AuthContext.tsx         # 認証状態の管理
+│   ├── LocationContext.tsx     # 位置情報の管理
+│   └── SeasonPostContext.tsx   # シーズン投稿の管理
+├── hooks/                       # カスタムフック
+│   └── useToggleLike.ts        # いいね機能のビジネスロジック
+├── lib/                         # ライブラリ設定
+│   └── firebase.ts             # Firebase設定とインスタンス
+├── services/                    # ビジネスロジックレイヤー
+│   ├── authService.ts          # Firebase認証操作
+│   ├── userService.ts          # Firestoreユーザー操作
+│   ├── postService.ts          # 投稿CRUD操作
+│   ├── likeService.ts          # いいね機能（Firestore操作）
+│   └── mapService.ts           # 地図関連サービス
+├── types/                       # 型定義レイヤー
+│   ├── auth.ts                 # 認証関連の型定義
+│   ├── firestore.ts            # Firestoreドキュメント構造の型定義
+│   ├── map.ts                  # 地図関連の型定義
+│   ├── post.ts                 # 投稿関連の型定義
+│   └── jsx.d.ts                # JSX拡張型定義
+└── utils/                       # ユーティリティレイヤー
+    ├── validation.ts           # フォームバリデーション機能
+    └── location.ts             # 位置情報ユーティリティ
+
+functions/                       # Firebase Cloud Functions
+├── src/
+│   ├── index.ts                # エントリーポイント
+│   ├── scheduledFunctions/
+│   │   ├── updateDailyRanking.ts    # デイリーランキング更新
+│   │   └── updateSeason.ts          # シーズン更新
+│   ├── types/
+│   │   ├── ranking.ts          # ランキング型定義
+│   │   └── season.ts           # シーズン型定義
+│   └── utils/
+│       └── scoreCalculator.ts  # スコア計算ロジック
+└── lib/                        # コンパイル済みJavaScript
+
+public/
+└── data/
+    └── municipalities.geojson  # 市区町村データ
 ```
 
 ## アーキテクチャの原則
@@ -40,7 +91,9 @@ src/
 各レイヤーは独立した責任を持ちます：
 
 - **UIレイヤー (`app/`)**：ユーザーインターフェースの表示とユーザーインタラクション
+- **コンポーネントレイヤー (`components/`)**：再利用可能なUIコンポーネント
 - **状態管理レイヤー (`contexts/`)**：アプリケーション状態の管理のみ
+- **フックレイヤー (`hooks/`)**：ビジネスロジックのカプセル化
 - **ビジネスロジックレイヤー (`services/`)**：Firebase操作とビジネスルール
 - **型定義レイヤー (`types/`)**：TypeScriptの型安全性を提供
 - **ユーティリティレイヤー (`utils/`)**：共通機能とヘルパー関数
@@ -48,15 +101,34 @@ src/
 ### 2. 依存関係の方向
 
 ```
-UI → Components → Context → Services → Lib → Firebase
+UI → Components → Hooks → Services → Lib → Firebase
+UI → Context → Services
 UI → Types
 UI → Utils
+Components → Hooks → Services
 Components → Types
 Services → Types
 Utils → Types
 ```
 
 上位レイヤーは下位レイヤーに依存しますが、逆は依存しません。
+
+### 3. いいね機能の設計パターン（例）
+
+```
+LikeButton (UI)
+   ↓ props: onClick
+useToggleLike (Hook)
+   ↓ 呼び出し
+likeService (Service)
+   ↓ Firestore操作
+Firebase
+```
+
+**設計の利点**：
+- UIとロジックが完全に分離
+- 楽観的UI更新とエラーハンドリングをフックに集約
+- 再利用可能で保守性が高い
 
 ## 各レイヤーの詳細
 
@@ -85,10 +157,28 @@ Utils → Types
 - モバイル最適化されたナビゲーション
 - タッチ操作に最適化
 
+#### LikeButton/LikeButton.tsx
+- 純粋なプレゼンテーションコンポーネント
+- ハートアイコンとアニメーション
+- propsでロジックを受け取る（onClick, isLiked, likesCount）
+- 再利用可能な設計
+
 #### layout/BottomNavigation.tsx
 - 固定ボトムナビゲーション
-- ホーム/カメラ/プロフィール間の移動
+- ホーム/検索/投稿/ランキング/プロフィール間の移動
 - アクティブ状態の表示
+
+#### layout/CameraButton.tsx
+- 中央に配置されたカメラボタン
+- モーダルトリガー
+
+#### map/MapContainer.tsx
+- Mapbox GL JSを使用した地図表示
+- 位置情報の表示と管理
+
+#### post/[id]/
+- 投稿詳細の表示コンポーネント群
+- ヘッダー、コンテンツ、ページの分離
 
 ### ライブラリ設定レイヤー (`src/lib/`)
 
@@ -107,6 +197,7 @@ Utils → Types
 **責任**：
 - アプリケーション全体の状態管理
 - 認証状態の保持
+- 位置情報の管理
 - コンポーネント間のデータ共有
 
 **設計原則**：
@@ -115,17 +206,49 @@ Utils → Types
 - 状態の更新と提供に特化
 
 #### AuthContext.tsx
-```typescript
-// ❌ 旧設計（ビジネスロジックを含む）
-const signUp = async (email, password) => {
-  const user = await createUserWithEmailAndPassword(auth, email, password);
-  await setDoc(doc(db, 'users', user.uid), userData);
-}
+認証状態の管理：
+- ユーザー情報の保持
+- ログイン/ログアウト状態
+- サービス層との連携
 
-// ✅ 新設計（状態管理のみ）
-const signUp = async (data: SignUpData) => {
-  await AuthService.signUp(data);
-}
+#### LocationContext.tsx
+位置情報の管理：
+- 現在位置の取得と保持
+- 地域情報の管理
+- 位置ベースの機能サポート
+
+#### SeasonPostContext.tsx
+シーズン投稿の管理：
+- 現在のシーズン情報
+- シーズンベースの投稿管理
+
+### カスタムフックレイヤー (`src/hooks/`)
+
+**責任**：
+- ビジネスロジックのカプセル化
+- 状態管理とFirestore操作の橋渡し
+- 楽観的UI更新とエラーハンドリング
+
+**設計原則**：
+- UIとデータアクセスを分離
+- 再利用可能なロジック
+- テスト可能な設計
+
+#### useToggleLike.ts
+いいね機能のビジネスロジック：
+- いいね状態の管理（isLiked, likesCount）
+- 楽観的UI更新
+- エラー時のロールバック
+- likeServiceの呼び出し
+- 二重送信防止
+
+**使用例**：
+```typescript
+const { isLiked, likesCount, isLoading, handleToggleLike } = useToggleLike({
+  postId: post.id,
+  initialIsLiked: false,
+  initialLikesCount: post.likesCount || 0,
+});
 ```
 
 ### ビジネスロジックレイヤー (`src/services/`)
@@ -136,22 +259,45 @@ const signUp = async (data: SignUpData) => {
 - データの検証と変換
 
 **設計原則**：
-- 静的クラスメソッドを使用
+- 純粋な関数またはクラスメソッドを使用
 - 単一責任の原則
 - エラーハンドリングを含む
 
-#### AuthService.ts
+#### authService.ts
 Firebase Authenticationの操作を担当：
 - サインイン・サインアップ
 - Googleログイン
 - ログアウト
 - パスワードリセット
 
-#### UserService.ts
+#### userService.ts
 Firestoreのユーザードキュメント操作を担当：
 - ユーザードキュメントの作成・取得・更新
 - プロフィール管理
 - フォロー・投稿数の管理
+
+#### postService.ts
+投稿のCRUD操作を担当：
+- 投稿の作成・取得・更新・削除
+- 画像のアップロード
+- 投稿一覧の取得（フィルタリング）
+- シーズンIDの生成
+
+#### likeService.ts
+いいね機能のFirestore操作を担当：
+- いいねの追加/削除（batch操作）
+- いいね状態の確認
+- サブコレクション `posts/{postId}/likes/{userId}` の管理
+- likesCountとscoreの更新
+
+**設計の意図**：
+- `postService.ts`から分離し、単一責任の原則を適用
+- いいね機能が独立してテスト・保守可能
+
+#### mapService.ts
+地図関連の操作を担当：
+- Mapbox API連携
+- 地図データの取得と変換
 
 ### 型定義レイヤー (`src/types/`)
 
@@ -170,7 +316,23 @@ Firestoreのユーザードキュメント操作を担当：
 Firestoreドキュメント構造の型定義：
 - `UserDocument`：ユーザードキュメント
 - `PostDocument`：投稿ドキュメント
-- `AreaDocument`：エリアドキュメント
+- `PostLikeDocument`：いいねドキュメント
+- `SeasonDocument`：シーズンドキュメント
+- `CreatePostData`：投稿作成データ
+
+#### map.ts
+地図関連の型定義：
+- 地図データ構造
+- 位置情報の型
+
+#### post.ts
+投稿関連の型定義：
+- 投稿表示用の拡張型
+- フィルタリングオプション
+
+#### jsx.d.ts
+JSX拡張型定義：
+- カスタムJSX要素の型定義
 
 ### ユーティリティレイヤー (`src/utils/`)
 
@@ -190,7 +352,84 @@ Firestoreドキュメント構造の型定義：
 - セキュリティを考慮した検証ルール
 - 各フォーム専用のバリデーション関数
 
+#### location.ts
+位置情報ユーティリティ：
+- 市区町村名の取得
+- 都道府県名の取得
+- GeoJSONデータの処理
+- 位置情報の変換とフォーマット
+
+## Firebase Cloud Functions
+
+**責任**：
+- サーバーサイドのスケジュール処理
+- ランキングの自動更新
+- シーズンの自動更新
+
+### scheduledFunctions/
+
+#### updateDailyRanking.ts
+デイリーランキングの更新：
+- 毎日定時実行
+- スコア計算とランキング生成
+- Firestoreへの書き込み
+
+#### updateSeason.ts
+シーズンの更新：
+- 月次で実行
+- 新しいシーズンの作成
+- 過去データの集計
+
+### utils/scoreCalculator.ts
+スコア計算ロジック：
+- いいね数ベースのスコア算出
+- ランキング用の重み付け計算
+
 ## データフロー
+
+### いいね機能のフロー例（最新の設計）
+
+1. **ユーザーがいいねボタンをクリック**
+   ```typescript
+   // components/LikeButton/LikeButton.tsx
+   <LikeButton onClick={handleToggleLike} isLiked={isLiked} likesCount={likesCount} />
+   ```
+
+2. **カスタムフックが楽観的UI更新を実行**
+   ```typescript
+   // hooks/useToggleLike.ts
+   const handleToggleLike = async () => {
+     // 楽観的UI更新
+     setIsLiked(!isLiked);
+     setLikesCount(prev => !isLiked ? prev + 1 : prev - 1);
+     
+     try {
+       await toggleLike(postId, user.uid, isLiked);
+     } catch (error) {
+       // エラー時はロールバック
+       setIsLiked(isLiked);
+       setLikesCount(previousLikesCount);
+     }
+   };
+   ```
+
+3. **likeServiceがFirestore batch操作を実行**
+   ```typescript
+   // services/likeService.ts
+   export async function toggleLike(postId: string, userId: string, isLiked: boolean) {
+     const batch = writeBatch(db);
+     
+     if (isLiked) {
+       batch.delete(likeRef);
+       batch.update(postRef, { likesCount: increment(-1) });
+     } else {
+       batch.set(likeRef, { userId, createdAt: serverTimestamp() });
+       batch.update(postRef, { likesCount: increment(1) });
+     }
+     
+     await batch.commit();
+   }
+   ```
 
 ### 認証フロー例
 
@@ -230,53 +469,160 @@ Firestoreドキュメント構造の型定義：
 
 ## 技術スタック
 
-- **Frontend**: Next.js 16.0.1 (App Router)
-- **Authentication**: Firebase Authentication
-- **Database**: Cloud Firestore  
+### フロントエンド
+- **Framework**: Next.js 16.0.1 (App Router)
+- **UI Library**: React 19
 - **Styling**: TailwindCSS v4
 - **Icons**: React Icons
+- **Map**: Mapbox GL JS
 - **Type Safety**: TypeScript (strict mode)
-- **Deployment**: Vercel
+
+### バックエンド
+- **Authentication**: Firebase Authentication
+- **Database**: Cloud Firestore
+- **Storage**: Firebase Storage (CORS設定済み)
+- **Functions**: Firebase Cloud Functions (TypeScript)
+- **Hosting**: Vercel (フロントエンド)
+
+### 開発ツール
+- **Package Manager**: npm
+- **Linter**: ESLint
+- **Version Control**: Git / GitHub
+
+### セキュリティ
+- **Firestore Rules**: 投稿・いいね・ユーザーデータの保護
+- **Storage Rules**: 画像アップロードの制限（サイズ・形式）
+- **CORS**: localhost:3000とVercelドメインを許可
 
 ## 設計の利点
 
 ### 1. 保守性
 - 各レイヤーが独立しているため、変更の影響範囲が限定的
 - 責任が明確なため、バグの特定が容易
+- いいね機能のような独立した機能が分離され、保守しやすい
 
 ### 2. テスタビリティ
 - サービス層が独立しているため、単体テストが作りやすい
 - モックの作成が容易
+- カスタムフックも独立してテスト可能
 
 ### 3. 拡張性
 - 新機能追加時も既存コードへの影響が最小限
 - 新しいサービスやコンテキストの追加が容易
+- コンポーネントの再利用が容易
 
 ### 4. 型安全性
 - TypeScriptの恩恵を最大限活用
 - コンパイル時エラーでバグを早期発見
+- 全レイヤーで型定義を共有
 
 ### 5. セキュリティ
 - エラーメッセージの情報開示を最小限に抑制
 - クライアントサイドバリデーションによる入力検証
 - 適切な認証エラーハンドリング
+- Firestore/Storage Rulesによるアクセス制御
+
+### 6. パフォーマンス
+- 楽観的UI更新によるレスポンス向上
+- 適切なデータフェッチ戦略
+- Cloud Functionsによるサーバーサイド処理の最適化
+
+## 実装のベストプラクティス
+
+### いいね機能の実装パターン
+
+**UIコンポーネント（プレゼンテーション層）**
+```typescript
+// components/LikeButton/LikeButton.tsx
+export default function LikeButton({ isLiked, likesCount, onClick, disabled }) {
+  return (
+    <button onClick={onClick} disabled={disabled}>
+      <HeartIcon filled={isLiked} />
+      <span>{likesCount} いいね</span>
+    </button>
+  );
+}
+```
+
+**カスタムフック（ビジネスロジック層）**
+```typescript
+// hooks/useToggleLike.ts
+export function useToggleLike({ postId, initialIsLiked, initialLikesCount }) {
+  const [isLiked, setIsLiked] = useState(initialIsLiked);
+  const [likesCount, setLikesCount] = useState(initialLikesCount);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleToggleLike = async () => {
+    // 楽観的UI更新 + エラーハンドリング
+    // likeServiceの呼び出し
+  };
+
+  return { isLiked, likesCount, isLoading, handleToggleLike };
+}
+```
+
+**サービス（データアクセス層）**
+```typescript
+// services/likeService.ts
+export async function toggleLike(postId: string, userId: string, isLiked: boolean) {
+  // Firestore batch操作のみ
+  // ビジネスロジックは含まない
+}
+```
+
+**使用例**
+```typescript
+// 任意のコンポーネント
+const { isLiked, likesCount, isLoading, handleToggleLike } = useToggleLike({
+  postId: post.id,
+  initialIsLiked: post.isLiked,
+  initialLikesCount: post.likesCount,
+});
+
+<LikeButton
+  isLiked={isLiked}
+  likesCount={likesCount}
+  onClick={handleToggleLike}
+  disabled={isLoading}
+/>
+```
+
+この設計により、**UIとロジックが完全に分離**され、**どこでも再利用可能**になります。
 
 ## コーディング規約
 
 ### 命名規則
-- **ファイル名**: camelCase（例：`authService.ts`）
+- **ファイル名**: camelCase（例：`authService.ts`, `useToggleLike.ts`）
+- **コンポーネントファイル**: PascalCase（例：`LikeButton.tsx`）
 - **クラス名**: PascalCase（例：`AuthService`）
-- **関数名**: camelCase（例：`signIn`）
-- **型名**: PascalCase（例：`UserDocument`）
+- **関数名**: camelCase（例：`signIn`, `handleToggleLike`）
+- **型名**: PascalCase（例：`UserDocument`, `PostDocument`）
+- **定数**: UPPER_SNAKE_CASE（例：`POSTS_COLLECTION`）
+
+### ファイル構成
+- **pages**: `app/[feature]/page.tsx`
+- **components**: `components/[category]/ComponentName.tsx`
+- **hooks**: `hooks/use[FeatureName].ts`
+- **services**: `services/[feature]Service.ts`
+- **types**: `types/[feature].ts`
 
 ### インポート順序
 1. Reactライブラリ
 2. サードパーティライブラリ
-3. 内部モジュール（services, types, contexts）
-4. 相対パス
+3. 内部モジュール（services, types, contexts, hooks）
+4. コンポーネント
+5. 相対パス
+6. スタイル
 
 ### コメント
-- 公開メソッドにはJSDocコメントを記述
+- 公開関数にはJSDocコメントを記述
 - 複雑なビジネスロジックには説明コメントを追加
+- TODOコメントは`// TODO:`形式で記述
+
+### TypeScript
+- `strict: true`を有効化
+- 型推論を活用しつつ、必要な場所では明示的に型定義
+- `any`の使用は最小限に
+- インターフェースより型エイリアスを優先（柔軟性のため）
 
 この設計により、スケーラブルで保守性の高いアプリケーションを構築できます。
