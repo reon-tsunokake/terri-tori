@@ -51,6 +51,20 @@ export default function PostForm({ onSuccess, onCancel, initialLatitude, initial
 
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [stream, setStream] = useState<MediaStream | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+
+  // 画面サイズの判定
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // 初期位置情報が変更されたときにformDataを更新
   useEffect(() => {
@@ -82,11 +96,15 @@ export default function PostForm({ onSuccess, onCancel, initialLatitude, initial
   // カメラ起動
   const openCamera = async () => {
     try {
+      // 端末の画面サイズに基づいてアスペクト比を決定
+      const aspectRatio = isMobile ? 9 / 16 : 16 / 9; // スマホは縦長、PCは横長
+      
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: { 
           facingMode: 'environment',
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
+          aspectRatio: { ideal: aspectRatio },
+          width: { ideal: isMobile ? 1080 : 1920 },
+          height: { ideal: isMobile ? 1920 : 1080 }
         },
         audio: false,
       });
@@ -97,7 +115,14 @@ export default function PostForm({ onSuccess, onCancel, initialLatitude, initial
       setTimeout(() => {
         if (videoRef.current) {
           videoRef.current.srcObject = mediaStream;
-          videoRef.current.play();
+          // play()の実行をPromiseとして扱い、エラーを適切に処理
+          videoRef.current.play().catch((error) => {
+            console.log('Video play was interrupted:', error);
+            // 再度play()を試みる
+            if (videoRef.current) {
+              videoRef.current.play().catch(() => {});
+            }
+          });
         }
       }, 100);
     } catch (error) {
@@ -138,10 +163,34 @@ export default function PostForm({ onSuccess, onCancel, initialLatitude, initial
               previewUrl: url,
               errors: { ...prev.errors, imageFile: undefined },
             }));
-            closeCamera();
+            // カメラは閉じずにプレビュー状態にする
           }
         }, 'image/jpeg', 0.9);
       }
+    }
+  };
+
+  // 写真を確定してフォームに進む
+  const confirmPhoto = () => {
+    closeCamera();
+  };
+
+  // 再撮影
+  const retakePhoto = () => {
+    // プレビューURLをクリーンアップ
+    if (formState.previewUrl) {
+      URL.revokeObjectURL(formState.previewUrl);
+    }
+    // フォームの画像データをクリア
+    setFormData((prev: PostFormData) => ({ ...prev, imageFile: null }));
+    setFormState((prev: PostFormState) => ({
+      ...prev,
+      previewUrl: null,
+      errors: { ...prev.errors, imageFile: undefined },
+    }));
+    // カメラが閉じている場合は再起動
+    if (!isCameraOpen) {
+      openCamera();
     }
   };
 
@@ -242,9 +291,16 @@ export default function PostForm({ onSuccess, onCancel, initialLatitude, initial
         previewUrl: null,
       });
 
-      if (onSuccess) {
-        onSuccess();
-      }
+      // 成功モーダルを表示
+      setShowSuccessModal(true);
+
+      // 2秒後に自動的に閉じる
+      setTimeout(() => {
+        setShowSuccessModal(false);
+        if (onSuccess) {
+          onSuccess();
+        }
+      }, 2000);
     } catch (error) {
       console.error('Error submitting post:', error);
       setFormState((prev: PostFormState) => ({
@@ -259,44 +315,86 @@ export default function PostForm({ onSuccess, onCancel, initialLatitude, initial
 
   return (
     <div className="fixed inset-0 z-50 bg-gradient-to-br from-white to-rose-50 overflow-y-auto">
+      {/* 投稿完了モーダル */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl p-8 shadow-2xl max-w-sm mx-4">
+            <h3 className="text-2xl font-bold text-gray-800 text-center">
+              投稿が完了しました
+            </h3>
+          </div>
+        </div>
+      )}
+
       <div className="min-h-screen p-4 sm:p-6 md:p-8">
       {isCameraOpen ? (
         // カメラ画面（全画面プレビュー）
-        <div className="fixed inset-0 bg-black">
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            className="w-full h-full object-cover"
-          />
+        <div className="fixed inset-0 bg-black flex flex-col">
+          <div className="flex-1 relative overflow-hidden">
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className={`w-full h-full object-cover ${formState.previewUrl ? 'hidden' : ''}`}
+            />
+            {formState.previewUrl && (
+              <img
+                src={formState.previewUrl}
+                alt="Captured"
+                className="w-full h-full object-cover"
+              />
+            )}
+          </div>
           <canvas ref={canvasRef} className="hidden" />
           
-          {/* オーバーレイボタン */}
-          <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/80 to-transparent">
-            <div className="flex gap-4 max-w-lg mx-auto">
-              <button
-                type="button"
-                onClick={capturePhoto}
-                className="flex-1 px-8 py-4 bg-white text-gray-900 rounded-full hover:bg-gray-100 active:scale-95 transition-all duration-200 shadow-2xl font-bold flex items-center justify-center gap-3 text-lg"
-              >
-                <FaCamera className="h-6 w-6" />
-                撮影する
-              </button>
-              {onCancel && (
+          {/* ボタンエリア */}
+          <div className="p-6 bg-black">
+            {!formState.previewUrl ? (
+              // 撮影前のボタン
+              <div className="flex gap-4 max-w-lg mx-auto">
                 <button
                   type="button"
-                  onClick={() => {
-                    closeCamera();
-                    onCancel();
-                  }}
-                  className="px-8 py-4 bg-gray-800/90 backdrop-blur-sm text-white rounded-full hover:bg-gray-700 active:scale-95 transition-all duration-200 shadow-2xl flex items-center gap-3"
+                  onClick={capturePhoto}
+                  className="flex-1 px-8 py-4 bg-white text-gray-900 rounded-full hover:bg-gray-100 active:scale-95 transition-all duration-200 shadow-2xl font-bold flex items-center justify-center gap-3 text-lg"
                 >
-                  <MdCancel className="h-6 w-6" />
-                  キャンセル
+                  <FaCamera className="h-6 w-6" />
+                  撮影する
                 </button>
-              )}
-            </div>
+                {onCancel && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      closeCamera();
+                      onCancel();
+                    }}
+                    className="px-8 py-4 bg-gray-800 text-white rounded-full hover:bg-gray-700 active:scale-95 transition-all duration-200 shadow-2xl flex items-center gap-3"
+                  >
+                    <MdCancel className="h-6 w-6" />
+                    キャンセル
+                  </button>
+                )}
+              </div>
+            ) : (
+              // 撮影後のボタン
+              <div className="flex gap-4 max-w-lg mx-auto">
+                <button
+                  type="button"
+                  onClick={confirmPhoto}
+                  className="flex-1 px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-full hover:from-green-600 hover:to-emerald-600 active:scale-95 transition-all duration-200 shadow-2xl font-bold flex items-center justify-center gap-3 text-lg"
+                >
+                  完了
+                </button>
+                <button
+                  type="button"
+                  onClick={retakePhoto}
+                  className="px-8 py-4 bg-gray-800 text-white rounded-full hover:bg-gray-700 active:scale-95 transition-all duration-200 shadow-2xl flex items-center gap-3 font-semibold"
+                >
+                  <FaCamera className="h-6 w-6" />
+                  再撮影
+                </button>
+              </div>
+            )}
           </div>
         </div>
       ) : (
@@ -313,12 +411,22 @@ export default function PostForm({ onSuccess, onCancel, initialLatitude, initial
             撮影した写真
           </label>
           {formState.previewUrl && (
-            <div className="mt-4 rounded-2xl overflow-hidden shadow-lg">
-              <img
-                src={formState.previewUrl}
-                alt="Preview"
-                className="w-full aspect-video object-cover"
-              />
+            <div className="space-y-3">
+              <div className="mt-4 rounded-2xl overflow-hidden shadow-lg">
+                <img
+                  src={formState.previewUrl}
+                  alt="Preview"
+                  className={`w-full object-cover ${isMobile ? 'aspect-[9/16]' : 'aspect-video'}`}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={retakePhoto}
+                className="w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-semibold rounded-xl hover:from-blue-600 hover:to-cyan-600 active:scale-95 transition-all duration-200 shadow-lg flex items-center justify-center gap-2"
+              >
+                <FaCamera className="h-5 w-5" />
+                再撮影する
+              </button>
             </div>
           )}
           {formState.errors.imageFile && (
