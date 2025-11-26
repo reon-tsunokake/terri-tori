@@ -345,8 +345,8 @@ export default function PostForm({ onSuccess, onCancel, initialLatitude, initial
                 className={`max-h-[70vh] max-w-full object-contain rounded-lg shadow-2xl ${isMobile ? 'w-auto' : 'w-auto'}`}
               />
             )}
-            
-            {/* 撮影前のボタン（プレビュー内にオーバーレイ） */}
+             
+            {}
             {!formState.previewUrl && (
               <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/80 to-transparent">
                 <div className="flex gap-4 max-w-lg mx-auto">
