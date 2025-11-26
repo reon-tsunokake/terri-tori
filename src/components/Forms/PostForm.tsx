@@ -330,7 +330,7 @@ export default function PostForm({ onSuccess, onCancel, initialLatitude, initial
       {isCameraOpen ? (
         // カメラ画面（全画面プレビュー）
         <div className="fixed inset-0 bg-black flex flex-col">
-          <div className="flex-1 relative overflow-hidden">
+          <div className={`relative overflow-hidden ${formState.previewUrl ? 'flex items-center justify-center p-4' : 'flex-1'}`}>
             <video
               ref={videoRef}
               autoPlay
@@ -342,41 +342,44 @@ export default function PostForm({ onSuccess, onCancel, initialLatitude, initial
               <img
                 src={formState.previewUrl}
                 alt="Captured"
-                className="w-full h-full object-cover"
+                className={`max-h-[70vh] max-w-full object-contain rounded-lg shadow-2xl ${isMobile ? 'w-auto' : 'w-auto'}`}
               />
+            )}
+             
+            {}
+            {!formState.previewUrl && (
+              <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/80 to-transparent">
+                <div className="flex gap-4 max-w-lg mx-auto">
+                  <button
+                    type="button"
+                    onClick={capturePhoto}
+                    className="flex-1 px-8 py-4 bg-white text-gray-900 rounded-full hover:bg-gray-100 active:scale-95 transition-all duration-200 shadow-2xl font-bold flex items-center justify-center gap-3 text-lg"
+                  >
+                    <FaCamera className="h-6 w-6" />
+                    撮影する
+                  </button>
+                  {onCancel && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeCamera();
+                        onCancel();
+                      }}
+                      className="px-8 py-4 bg-gray-800/90 backdrop-blur-sm text-white rounded-full hover:bg-gray-700 active:scale-95 transition-all duration-200 shadow-2xl flex items-center gap-3"
+                    >
+                      <MdCancel className="h-6 w-6" />
+                      キャンセル
+                    </button>
+                  )}
+                </div>
+              </div>
             )}
           </div>
           <canvas ref={canvasRef} className="hidden" />
           
-          {/* ボタンエリア */}
-          <div className="p-6 bg-black">
-            {!formState.previewUrl ? (
-              // 撮影前のボタン
-              <div className="flex gap-4 max-w-lg mx-auto">
-                <button
-                  type="button"
-                  onClick={capturePhoto}
-                  className="flex-1 px-8 py-4 bg-white text-gray-900 rounded-full hover:bg-gray-100 active:scale-95 transition-all duration-200 shadow-2xl font-bold flex items-center justify-center gap-3 text-lg"
-                >
-                  <FaCamera className="h-6 w-6" />
-                  撮影する
-                </button>
-                {onCancel && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      closeCamera();
-                      onCancel();
-                    }}
-                    className="px-8 py-4 bg-gray-800 text-white rounded-full hover:bg-gray-700 active:scale-95 transition-all duration-200 shadow-2xl flex items-center gap-3"
-                  >
-                    <MdCancel className="h-6 w-6" />
-                    キャンセル
-                  </button>
-                )}
-              </div>
-            ) : (
-              // 撮影後のボタン
+          {/* 撮影後のボタン（プレビュー外） */}
+          {formState.previewUrl && (
+            <div className="p-6 bg-black">
               <div className="flex gap-4 max-w-lg mx-auto">
                 <button
                   type="button"
@@ -394,8 +397,8 @@ export default function PostForm({ onSuccess, onCancel, initialLatitude, initial
                   再撮影
                 </button>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       ) : (
         // 投稿フォーム
