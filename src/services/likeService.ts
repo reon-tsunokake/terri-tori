@@ -11,6 +11,7 @@ import { PostLikeDocument } from '@/types/firestore';
 // コレクション名
 const POSTS_COLLECTION = 'posts';
 const LIKES_SUBCOLLECTION = 'likes';
+const USERS_COLLECTION = 'users';
 
 /**
  * いいねを追加/削除
@@ -23,14 +24,15 @@ export async function toggleLike(
   try {
     const postRef = doc(db, POSTS_COLLECTION, postId);
     const likeRef = doc(db, POSTS_COLLECTION, postId, LIKES_SUBCOLLECTION, userId);
+    const userLikeRef = doc(db, USERS_COLLECTION, userId, LIKES_SUBCOLLECTION, postId);
     const batch = writeBatch(db);
 
     if (isLiked) {
       // いいねを削除
       batch.delete(likeRef);
+      batch.delete(userLikeRef);
       batch.update(postRef, {
         likesCount: increment(-1),
-        score: increment(-1),
       });
     } else {
       // いいねを追加
@@ -38,10 +40,14 @@ export async function toggleLike(
         userId,
         createdAt: serverTimestamp(),
       };
+      const userLikeData = {
+        postId,
+        createdAt: serverTimestamp(),
+      };
       batch.set(likeRef, likeData);
+      batch.set(userLikeRef, userLikeData);
       batch.update(postRef, {
         likesCount: increment(1),
-        score: increment(1),
       });
     }
 

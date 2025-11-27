@@ -346,33 +346,36 @@ export default function PostForm({ onSuccess, onCancel, initialLatitude, initial
               />
             )}
              
-            {}
+            {/* 撮影前のボタン */}
             {!formState.previewUrl && (
-              <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/80 to-transparent">
-                <div className="flex gap-4 max-w-lg mx-auto">
-                  <button
-                    type="button"
-                    onClick={capturePhoto}
-                    className="flex-1 px-8 py-4 bg-white text-gray-900 rounded-full hover:bg-gray-100 active:scale-95 transition-all duration-200 shadow-2xl font-bold flex items-center justify-center gap-3 text-lg"
-                  >
-                    <FaCamera className="h-6 w-6" />
-                    撮影する
-                  </button>
-                  {onCancel && (
+              <>
+                {/* 右上：キャンセルボタン（×） */}
+                {onCancel && (
+                  <div className="absolute top-4 right-4 z-10">
                     <button
                       type="button"
                       onClick={() => {
                         closeCamera();
                         onCancel();
                       }}
-                      className="px-8 py-4 bg-gray-800/90 backdrop-blur-sm text-white rounded-full hover:bg-gray-700 active:scale-95 transition-all duration-200 shadow-2xl flex items-center gap-3"
+                      className="p-3 bg-black/50 backdrop-blur-sm rounded-full text-white hover:bg-black/70 active:scale-95 transition-all duration-200 shadow-2xl"
                     >
-                      <MdCancel className="h-6 w-6" />
-                      キャンセル
+                      <HiX className="h-7 w-7" />
                     </button>
-                  )}
+                  </div>
+                )}
+
+                {/* 中央下：撮影ボタン（丸いボタン） */}
+                <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-10">
+                  <button
+                    type="button"
+                    onClick={capturePhoto}
+                    className="w-20 h-20 bg-white rounded-full hover:bg-gray-100 active:scale-95 transition-all duration-200 shadow-2xl flex items-center justify-center border-4 border-gray-300"
+                  >
+                    <div className="w-16 h-16 bg-white rounded-full border-2 border-gray-400"></div>
+                  </button>
                 </div>
-              </div>
+              </>
             )}
           </div>
           <canvas ref={canvasRef} className="hidden" />

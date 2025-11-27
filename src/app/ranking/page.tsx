@@ -30,10 +30,33 @@ export default function RankingPage() {
   const { user } = useAuth(); // 現在のログインユーザー
   const [posts, setPosts] = useState<RankingPostData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [displayCount, setDisplayCount] = useState(10); // 無限スクロール用
 
   // フィルター状態
   const [selectedMunicipality, setSelectedMunicipality] = useState<string>('all');
   const [selectedSeason, setSelectedSeason] = useState<string>('all');
+
+  // 無限スクロールのハンドリング
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+      const scrollHeight = document.documentElement.scrollHeight || document.body.scrollHeight;
+      const clientHeight = document.documentElement.clientHeight || window.innerHeight;
+
+      // ページの底に近づいたら追加読み込み
+      if (scrollTop + clientHeight >= scrollHeight - 100) {
+        setDisplayCount(prev => prev + 10);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // フィルター変更時にdisplayCountをリセット
+  useEffect(() => {
+    setDisplayCount(10);
+  }, [selectedMunicipality, selectedSeason]);
 
   // --- データ取得 ---
   useEffect(() => {
@@ -202,6 +225,11 @@ export default function RankingPage() {
     return result.slice(0, 100);
   }, [posts, selectedMunicipality, selectedSeason]);
 
+  // 表示するランキングデータ(無限スクロール用)
+  const displayedRankingData = useMemo(() => {
+    return rankingData.slice(0, displayCount);
+  }, [rankingData, displayCount]);
+
   // 順位バッジのスタイル生成関数
   const getRankStyle = (index: number) => {
     switch (index) {
@@ -251,7 +279,8 @@ export default function RankingPage() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
             </div>
           ) : rankingData.length > 0 ? (
-            rankingData.map((post, index) => {
+            <>
+            {displayedRankingData.map((post, index) => {
               const isCurrentUser = user && (post.authorId === user.uid);
               const rank = index + 1;
 
@@ -329,7 +358,13 @@ export default function RankingPage() {
                   </a>
                 </div>
               );
-            })
+            })}
+            {displayedRankingData.length < rankingData.length && (
+              <div className="flex justify-center py-4">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div>
+              </div>
+            )}
+            </>
           ) : (
             <div className="py-12 text-center text-gray-500">
               <p>ランキングデータがありません</p>
