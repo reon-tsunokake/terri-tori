@@ -6,7 +6,8 @@ import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../../../src/lib/firebase';
 import Header from '../../../src/components/layout/Header';
 import BottomNavigation from '../../../src/components/layout/BottomNavigation';
-import { PostDocument } from '../../../src/types/firestore';
+import { PostDocument, UserDocument } from '../../../src/types/firestore';
+import { UserService } from '../../../src/services/userService';
 
 // 型定義の補完
 type PostData = Omit<PostDocument, 'location'> & {
@@ -16,12 +17,14 @@ type PostData = Omit<PostDocument, 'location'> & {
     prefecture?: string;
     name?: string;
   };
+  author?: UserDocument;
 };
 
 export default function SearchPage() {
   // --- State ---
   const [posts, setPosts] = useState<PostData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [displayCount, setDisplayCount] = useState(18); // 表示する投稿数
 
   // Filters
   const [selectedMunicipality, setSelectedMunicipality] = useState<string>('all');
@@ -36,10 +39,25 @@ export default function SearchPage() {
         const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'));
         const querySnapshot = await getDocs(q);
         
-        const fetchedPosts: PostData[] = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-        } as PostData));
+        const fetchedPosts: PostData[] = await Promise.all(
+          querySnapshot.docs.map(async (doc) => {
+            const postData = doc.data() as PostDocument;
+            // 投稿者情報を取得
+            let author: UserDocument | undefined;
+            if (postData.userId) {
+              try {
+                author = await UserService.getUser(postData.userId) || undefined;
+              } catch (error) {
+                console.error(`Failed to fetch author for post ${doc.id}:`, error);
+              }
+            }
+            return {
+              id: doc.id,
+              ...postData,
+              author,
+            } as PostData;
+          })
+        );
 
         setPosts(fetchedPosts);
       } catch (error) {
@@ -96,6 +114,37 @@ export default function SearchPage() {
 
     return result;
   }, [posts, selectedMunicipality, selectedSeason, sortOrder]);
+
+  // --- Infinite Scroll ---
+  useEffect(() => {
+    const handleScroll = () => {
+      // ページの底に近づいたら次の投稿を読み込む
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      const scrollHeight = document.documentElement.scrollHeight;
+      const clientHeight = window.innerHeight;
+
+      // 底から100px以内に到達したら
+      if (scrollTop + clientHeight >= scrollHeight - 100) {
+        // まだ表示していない投稿がある場合のみ増やす
+        if (displayCount < filteredPosts.length) {
+          setDisplayCount(prev => prev + 18);
+        }
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [displayCount, filteredPosts.length]);
+
+  // フィルター変更時に表示数をリセット
+  useEffect(() => {
+    setDisplayCount(18);
+  }, [selectedMunicipality, selectedSeason, sortOrder]);
+
+  // 表示する投稿（最初のN件のみ）
+  const displayedPosts = useMemo(() => {
+    return filteredPosts.slice(0, displayCount);
+  }, [filteredPosts, displayCount]);
 
   return (
     <div className="min-h-screen bg-white pb-20">
@@ -154,36 +203,61 @@ export default function SearchPage() {
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-0.5 mt-0.5">
-            {filteredPosts.length > 0 ? (
-              filteredPosts.map((post) => (
-                <a href={`/post/${post.id}`} key={post.id} className="relative aspect-square w-full overflow-hidden bg-gray-100 group block">
-                  {post.imageUrl ? (
-                    <img
-                      src={post.imageUrl}
-                      alt={`Post in ${post.location?.municipality || 'unknown location'}`}
-                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                    />
-                  ) : (
-                    <div className="flex items-center justify-center h-full text-gray-300 text-xs">
-                      No Image
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 p-4">
+              {displayedPosts.length > 0 ? (
+                displayedPosts.map((post) => (
+                <a href={`/post/${post.id}`} key={post.id} className="block group">
+                  {/* カード全体 */}
+                  <div className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden border border-gray-100">
+                    {/* 画像エリア */}
+                    <div className="relative aspect-square w-full overflow-hidden bg-gray-100">
+                      {post.imageUrl ? (
+                        <img
+                          src={post.imageUrl}
+                          alt={`Post in ${post.location?.municipality || 'unknown location'}`}
+                          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        />
+                      ) : (
+                        <div className="flex items-center justify-center h-full text-gray-300 text-xs">
+                          No Image
+                        </div>
+                      )}
                     </div>
-                  )}
-                  {post.seasonId && (
-                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/50 to-transparent p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <p className="text-[10px] text-white font-medium text-center truncate">
-                        {post.seasonId}
-                      </p>
+                    {/* 投稿者情報エリア */}
+                    <div className="flex items-center gap-2 p-3 bg-white">
+                      {post.author?.photoURL ? (
+                        <img
+                          src={post.author.photoURL}
+                          alt={post.author.displayName}
+                          className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                        />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 text-xs font-semibold flex-shrink-0">
+                          {post.author?.displayName?.charAt(0).toUpperCase() || '?'}
+                        </div>
+                      )}
+                      <span className="text-sm text-gray-800 font-medium truncate">
+                        {post.author?.displayName || '読み込み中...'}
+                      </span>
                     </div>
-                  )}
+                  </div>
                 </a>
               ))
             ) : (
-              <div className="col-span-3 py-12 text-center text-gray-500 text-sm">
+              <div className="col-span-2 sm:col-span-3 py-12 text-center text-gray-500 text-sm">
                 条件に一致する投稿がありません
               </div>
             )}
-          </div>
+            </div>
+
+            {/* ローディングインジケーター */}
+            {displayCount < filteredPosts.length && (
+              <div className="flex justify-center items-center py-8">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div>
+              </div>
+            )}
+          </>
         )}
       </main>
 

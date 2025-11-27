@@ -1,22 +1,27 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { PostDocument } from '../../../types/firestore';
+import { PostDocument, UserDocument } from '../../../types/firestore';
 import { getMunicipalityName, getPrefectureName } from '../../../utils/location';
 import { fetchLikeStatus, useToggleLike } from '../../../hooks/useToggleLike';
 import { useAuth } from '../../../contexts/AuthContext';
 import LikeButton from '../../LikeButton/LikeButton';
+import { UserService } from '../../../services/userService';
+import { HiX } from 'react-icons/hi';
 
 interface PostDetailContentProps {
   post: PostDocument & { id: string };
+  onBack?: () => void;
 }
 
-export default function PostDetailContent({ post }: PostDetailContentProps) {
+export default function PostDetailContent({ post, onBack }: PostDetailContentProps) {
   const { user } = useAuth();
   const [locationName, setLocationName] = useState<string>('場所不明');
   const [prefectureName, setPrefectureName] = useState<string>('');
   const [initialIsLiked, setInitialIsLiked] = useState(false);
   const [isLoadingLikeStatus, setIsLoadingLikeStatus] = useState(true);
+  const [postAuthor, setPostAuthor] = useState<UserDocument | null>(null);
+  const [showInfo, setShowInfo] = useState(true);
 
   const { isLiked, likesCount, isLoading, handleToggleLike } = useToggleLike({
     postId: post.id,
@@ -47,60 +52,121 @@ export default function PostDetailContent({ post }: PostDetailContentProps) {
     checkLikeStatus();
   }, [user, post.id]);
 
+  useEffect(() => {
+    const fetchPostAuthor = async () => {
+      if (post.userId) {
+        const author = await UserService.getUser(post.userId);
+        setPostAuthor(author);
+      }
+    };
+    fetchPostAuthor();
+  }, [post.userId]);
+
   return (
-    <div className="bg-white">
-      {/* 写真エリア */}
-      <div className="relative w-full bg-gray-100">
+    <div className="bg-black min-h-screen relative">
+      {/* 写真エリア（画面いっぱい） */}
+      <div 
+        className="relative w-full h-screen cursor-pointer"
+        onClick={() => setShowInfo(!showInfo)}
+      >
         {post.imageUrl ? (
           <img
             src={post.imageUrl}
             alt="Post detail"
-            className="w-full h-auto max-h-[60vh] object-contain mx-auto"
+            className="w-full h-full object-contain"
           />
         ) : (
-          <div className="w-full h-64 flex items-center justify-center text-gray-400">No Image</div>
+          <div className="w-full h-full flex items-center justify-center text-gray-400">No Image</div>
         )}
-      </div>
 
-      {/* 投稿情報エリア */}
-      <div className="p-4 space-y-4">
-        <div className="flex justify-between items-start">
-          <div>
-            {/* Location情報 */}
-            <h2 className="text-xl font-bold text-gray-900">
-              {locationName}
-            </h2>
-            <p className="text-sm text-gray-500">
-              {prefectureName}
-            </p>
-          </div>
-          {/* Season情報 */}
-          <div className="text-right">
-            <span className="inline-block bg-blue-100 text-blue-800 text-xs px-3 py-1 rounded-full font-medium">
+        {/* オーバーレイ情報（写真の上） */}
+        <div 
+          className={`absolute inset-0 transition-opacity duration-300 ${showInfo ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        >
+          {/* 左上：Season情報 */}
+          <div className="absolute top-4 left-4">
+            <span className="inline-block bg-blue-500/90 backdrop-blur-sm text-white text-xs px-3 py-1 rounded-full font-medium shadow-lg">
               {post.seasonId || 'Season未設定'}
             </span>
           </div>
-        </div>
 
-        {/* いいね数などのメタデータ */}
-        <div className="flex items-center text-gray-600 text-sm border-y border-gray-50 py-3">
-          <LikeButton
-            isLiked={isLiked}
-            likesCount={likesCount}
-            onClick={handleToggleLike}
-            disabled={isLoading || isLoadingLikeStatus}
-          />
+          {/* 右上：閉じるボタン */}
+          <div className="absolute top-4 right-4">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onBack) {
+                  onBack();
+                } else if (typeof window !== 'undefined') {
+                  window.history.back();
+                }
+              }}
+              className="p-2 bg-black/50 backdrop-blur-sm rounded-full text-white hover:bg-black/70 transition-colors shadow-lg"
+            >
+              <HiX className="w-6 h-6" />
+            </button>
+          </div>
 
-          <span className="text-gray-400 text-xs ml-auto">
-            {post.createdAt ? new Date(post.createdAt.seconds * 1000).toLocaleDateString() : ''}
-          </span>
-        </div>
+          {/* 左下：投稿情報エリア */}
+          <div 
+            className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/80 via-black/50 to-transparent"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="space-y-4">
+              {/* Location情報 */}
+              <div>
+                <h2 className="text-2xl font-bold text-white drop-shadow-lg">
+                  {locationName}
+                </h2>
+                <p className="text-sm text-white/80 drop-shadow">
+                  {prefectureName}
+                </p>
+              </div>
 
-        {/* コメント・キャプション */}
-        <div className="pt-2">
-          <p className="text-gray-800 text-sm leading-relaxed whitespace-pre-wrap">
-            {post.caption || "コメントはありません"}
-          </p>
+              {/* 投稿者情報といいねボタン */}
+              <div className="flex items-center gap-4">
+                {/* 投稿者情報 */}
+                <div className="flex items-center gap-2">
+                  {postAuthor?.photoURL ? (
+                    <img
+                      src={postAuthor.photoURL}
+                      alt={postAuthor.displayName}
+                      className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-lg"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-white/30 backdrop-blur-sm flex items-center justify-center text-white text-sm font-semibold border-2 border-white shadow-lg">
+                      {postAuthor?.displayName?.charAt(0).toUpperCase() || '?'}
+                    </div>
+                  )}
+                  <span className="text-white font-semibold text-base drop-shadow-lg">
+                    {postAuthor?.displayName || '読み込み中...'}
+                  </span>
+                </div>
+
+                {/* いいねボタン */}
+                <LikeButton
+                  isLiked={isLiked}
+                  likesCount={likesCount}
+                  onClick={handleToggleLike}
+                  disabled={isLoading || isLoadingLikeStatus}
+                />
+
+                {/* 投稿日時 */}
+                <span className="text-white/70 text-xs ml-auto drop-shadow">
+                  {post.createdAt ? new Date(post.createdAt.seconds * 1000).toLocaleDateString() : ''}
+                </span>
+              </div>
+
+              {/* キャプション */}
+              {post.caption && (
+                <div className="pt-2">
+                  <p className="text-white text-sm leading-relaxed drop-shadow line-clamp-3">
+                    {post.caption}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>

@@ -77,10 +77,9 @@ export default function PostDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white pb-20">
-      <PostDetailHeader onBack={handleBack} />
-      <main className="pt-16">
-        <PostDetailContent post={post} />
+    <div className="min-h-screen bg-black pb-20">
+      <main>
+        <PostDetailContent post={post} onBack={handleBack} />
       </main>
       <BottomNavigation />
     </div>
