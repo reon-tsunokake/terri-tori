@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { HiHome, HiChartBar, HiMagnifyingGlass, HiUser } from 'react-icons/hi2';
+import { useAuth } from '../../contexts/AuthContext';
 
 /**
  * ボトムナビゲーションコンポーネント
@@ -11,6 +12,12 @@ import { HiHome, HiChartBar, HiMagnifyingGlass, HiUser } from 'react-icons/hi2';
  */
 export default function BottomNavigation() {
   const pathname = usePathname();
+  const { user } = useAuth();
+
+  // プロフィールページへのリンク（ログイン済みなら自分のプロフィール、未ログインならログインページ）
+  const profileHref = user ? `/profile/${user.uid}` : '/login';
+  // プロフィールタブのアクティブ判定
+  const isProfileActive = pathname.startsWith('/profile');
 
   const navItems = [
     {
@@ -32,10 +39,10 @@ export default function BottomNavigation() {
       isActive: pathname === '/search'
     },
     {
-      href: '/profile',
+      href: profileHref,
       icon: HiUser,
       label: 'プロフィール',
-      isActive: pathname === '/profile'
+      isActive: isProfileActive
     }
   ];
 
