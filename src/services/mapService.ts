@@ -1,5 +1,7 @@
 // src/services/mapService.ts
 import { FeatureCollection } from 'geojson'; // npm install @types/geojson --save-dev が必要かも
+import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 export class MapService {
   /**
@@ -20,14 +22,77 @@ export class MapService {
   }
 
   /**
-   * 指定エリアの詳細情報を取得します（暫定実装）
-   * Map 連携が整うまでのスタブとして、最低限の形で返却します。
+   * 指定エリアの詳細情報を取得します
+   * GeoJSON から市町村名を取得し、ランキング・検索ページへのリンクを返します
+   * @param areaId - エリアID
+   * @param currentSeasonId - 現在のシーズンID (オプション。渡されない場合は自動的に取得します)
    */
-  public static async getAreaDetails(areaId: string): Promise<{ name: string; description: string }> {
-    // 将来的には API 呼び出しや別データソースに差し替え
-    return Promise.resolve({
-      name: String(areaId || '不明なエリア'),
-      description: 'このエリアの詳細情報は現在準備中です。',
-    });
+  public static async getAreaDetails(areaId: string, currentSeasonId?: string): Promise<{
+    name: string;
+    rankingLink: string;
+    searchLink: string;
+    currentSeasonId?: string;
+  }> {
+    try {
+      const geoJson = await this.getMunicipalitiesGeoJson();
+      
+      // areaId に対応する市町村を探す
+      const feature = geoJson.features.find((f: any) => {
+        return String(f.properties?.id ?? '') === String(areaId);
+      });
+
+      // currentSeasonId が渡されていない場合は取得
+      const seasonId = currentSeasonId || await this.getCurrentSeasonId();
+
+      if (feature && feature.properties) {
+        const name = feature.properties.name || String(areaId || '不明なエリア');
+        return Promise.resolve({
+          name,
+          rankingLink: `/ranking?areaId=${encodeURIComponent(areaId)}&areaName=${encodeURIComponent(name)}`,
+          searchLink: `/search?areaId=${encodeURIComponent(areaId)}&areaName=${encodeURIComponent(name)}${seasonId ? `&seasonId=${encodeURIComponent(seasonId)}` : ''}`,
+          currentSeasonId: seasonId,
+        });
+      }
+
+      // フォールバック: areaId で返す
+      return Promise.resolve({
+        name: String(areaId || '不明なエリア'),
+        rankingLink: `/ranking?areaId=${encodeURIComponent(areaId)}`,
+        searchLink: `/search?areaId=${encodeURIComponent(areaId)}${seasonId ? `&seasonId=${encodeURIComponent(seasonId)}` : ''}`,
+        currentSeasonId: seasonId,
+      });
+    } catch (error) {
+      console.error('Error fetching area details:', error);
+      return Promise.resolve({
+        name: String(areaId || '不明なエリア'),
+        rankingLink: `/ranking?areaId=${encodeURIComponent(areaId)}`,
+        searchLink: `/search?areaId=${encodeURIComponent(areaId)}`,
+      });
+    }
+  }
+
+  /**
+   * 現在のシーズンIDを取得します
+   * seasonsコレクションから isCurrent=true のドキュメントの seasonId を返します
+   */
+  public static async getCurrentSeasonId(): Promise<string | undefined> {
+    try {
+      const seasonsRef = collection(db, 'seasons');
+      const querySnapshot = await getDocs(seasonsRef);
+      
+      // isCurrent=true のシーズンを探す
+      for (const doc of querySnapshot.docs) {
+        const data = doc.data();
+        if (data.isCurrent === true) {
+          const seasonId = data.seasonId;
+          return seasonId ? String(seasonId) : undefined;
+        }
+      }
+      
+      return undefined;
+    } catch (error) {
+      console.error('Error fetching current season:', error);
+      return undefined;
+    }
   }
 }
