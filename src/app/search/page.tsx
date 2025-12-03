@@ -1,7 +1,11 @@
-'use client';
+"use client";
+
+// Prevent static prerendering for this page because it uses client-side
+// navigation hooks (`useSearchParams`). Force dynamic rendering so Next
+// won't attempt to prerender and will avoid the Suspense-with-CSR error.
+export const dynamic = 'force-dynamic';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { collection, getDocs, query, orderBy, collectionGroup } from 'firebase/firestore';
 // パス解決エラー対策: プロジェクトルートまで戻って src から指定
 import { db } from '../../../src/lib/firebase';
@@ -22,11 +26,8 @@ type PostData = Omit<PostDocument, 'location'> & {
 };
 
 export default function SearchPage() {
-  // --- Query Parameters ---
-  const searchParams = useSearchParams();
-  const areaIdFromUrl = searchParams.get('areaId');
-  const areaNameFromUrl = searchParams.get('areaName');
-  const seasonIdFromUrl = searchParams.get('seasonId');
+  // --- Query Parameters (read from window on client) ---
+  // We avoid `useSearchParams` to prevent Next.js prerender issues.
 
   // --- State ---
   const [posts, setPosts] = useState<PostData[]>([]);
@@ -37,16 +38,20 @@ export default function SearchPage() {
   const [seasonList, setSeasonList] = useState<string[]>([]);
 
   // Filters
-  const [selectedMunicipality, setSelectedMunicipality] = useState<string>(
-    areaIdFromUrl && areaIdFromUrl !== '' ? decodeURIComponent(areaIdFromUrl) : 'all'
-  );
-  const [selectedSeason, setSelectedSeason] = useState<string>(
-    seasonIdFromUrl && seasonIdFromUrl !== '' ? decodeURIComponent(seasonIdFromUrl) : 'all'
-  );
+  const [selectedMunicipality, setSelectedMunicipality] = useState<string>('all');
+  const [selectedSeason, setSelectedSeason] = useState<string>('all');
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
 
   // --- Data Fetching ---
   useEffect(() => {
+    // Read URL search params on client and set initial filters if present
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const areaId = params.get('areaId');
+      const seasonId = params.get('seasonId');
+      if (areaId && areaId !== '') setSelectedMunicipality(decodeURIComponent(areaId));
+      if (seasonId && seasonId !== '') setSelectedSeason(decodeURIComponent(seasonId));
+    }
     const fetchPosts = async () => {
       try {
         // クエリ: 作成日時の降順で全件取得
