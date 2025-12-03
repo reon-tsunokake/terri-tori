@@ -45,7 +45,7 @@
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "seasonId", "order": "ASCENDING" },
-        { "fieldPath": "score", "order": "DESCENDING" }
+        { "fieldPath": "likesCount", "order": "DESCENDING" }
       ]
     },
     {
@@ -54,7 +54,7 @@
       "fields": [
         { "fieldPath": "seasonId", "order": "ASCENDING" },
         { "fieldPath": "regionId", "order": "ASCENDING" },
-        { "fieldPath": "score", "order": "DESCENDING" }
+        { "fieldPath": "likesCount", "order": "DESCENDING" }
       ]
     }
   ],

@@ -45,9 +45,12 @@ export const updateSeasonScheduled = onSchedule(
       }
 
       // 新しいシーズンを作成
-      const now = new Date();
-      const currentYear = now.getFullYear();
-      const currentMonth = now.getMonth() + 1; // 0-11 → 1-12
+      // JST (Asia/Tokyo) の現在日時を取得
+      const jstNow = new Date(
+        new Date().toLocaleString("en-US", { timeZone: "Asia/Tokyo" })
+      );
+      const currentYear = jstNow.getFullYear();
+      const currentMonth = jstNow.getMonth() + 1; // 0-11 → 1-12
 
       // 新シーズンのIDと日付を計算
       const newSeasonId = generateSeasonId(currentYear, currentMonth);
@@ -62,8 +65,9 @@ export const updateSeasonScheduled = onSchedule(
       const startDate = admin.firestore.Timestamp.fromDate(
         new Date(currentYear, currentMonth - 1, 1, 0, 0, 0)
       );
+      // 終了日は次の月の1日の1ミリ秒前 (当月の最終瞬間)
       const endDate = admin.firestore.Timestamp.fromDate(
-        new Date(nextYear, nextMonth - 1, 1, 0, 0, 0)
+        new Date(nextYear, nextMonth - 1, 1, 0, 0, 0, -1)
       );
 
       // 新しいシーズンドキュメントを作成
