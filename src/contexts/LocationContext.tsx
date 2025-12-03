@@ -33,18 +33,18 @@ export const LocationProvider = ({ children }: { children: ReactNode }) => {
     try {
       const response = await fetch('/data/municipalities.geojson');
       if (!response.ok) return null;
-      
+
       const geojson = await response.json();
-      
+
       // 市区町村名が一致するfeatureを探す
-      const feature = geojson.features.find((f: any) => 
+      const feature = geojson.features.find((f: any) =>
         f.properties.name === city || f.properties.N03_004 === city
       );
-      
+
       if (feature && feature.properties.N03_007) {
         return feature.properties.N03_007; // 市区町村コード（例: "03202"）
       }
-      
+
       return null;
     } catch (error) {
       console.error('市区町村コード取得エラー:', error);
@@ -59,15 +59,15 @@ export const LocationProvider = ({ children }: { children: ReactNode }) => {
       const response = await fetch(
         `https://api.mapbox.com/geocoding/v5/mapbox.places/${lon},${lat}.json?access_token=${MAPBOX_TOKEN}&language=ja`
       );
-      
+
       const data = await response.json();
-      
+
       if (data.features && data.features.length > 0) {
         const feature = data.features[0];
-        
+
         let city = null;
         let prefecture = null;
-        
+
         // context配列から情報を抽出
         if (feature.context) {
           for (const ctx of feature.context) {
@@ -78,18 +78,18 @@ export const LocationProvider = ({ children }: { children: ReactNode }) => {
             }
           }
         }
-        
+
         // featureのplace_typeがplaceの場合、feature自体が市区町村
         if (feature.place_type && feature.place_type.includes('place')) {
           city = feature.text;
         }
-        
+
         return {
           city: city,
           prefecture: prefecture,
         };
       }
-      
+
       return { city: null, prefecture: null };
     } catch (error) {
       console.error('逆ジオコーディングエラー:', error);
@@ -107,10 +107,10 @@ export const LocationProvider = ({ children }: { children: ReactNode }) => {
       async (position) => {
         const lat = position.coords.latitude;
         const lon = position.coords.longitude;
-        
+
         // 市区町村名と都道府県名を取得
         const { city, prefecture } = await reverseGeocode(lat, lon);
-        
+
         // regionIdを市区町村コードとして取得（municipalities.geojsonから）
         let regionId = null;
         if (city) {
@@ -118,7 +118,7 @@ export const LocationProvider = ({ children }: { children: ReactNode }) => {
           // ここでは簡易的に市区町村名から推測（本番環境では要修正）
           regionId = await getRegionIdFromCity(city, lat, lon);
         }
-        
+
         setLocation({
           latitude: lat,
           longitude: lon,

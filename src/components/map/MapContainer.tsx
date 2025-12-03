@@ -17,12 +17,19 @@ type Props = {
   geoJsonData?: MunicipalityCollection;                        // 描画データ
   onAreaClick?: (props: MunicipalityProperties) => void;       // クリック時
   selectedId?: string;                                         // 選択中のID
+  regionTopDocs?: RegionTopDocument[];                         // 地域トップ投稿
 };
+
+import { RegionTopDocument } from '@/types/ranking';
+import { generateClippedRegionImage } from '@/utils/imageUtils';
+
+
 
 export default function MapContainer({
   geoJsonData,
   onAreaClick,
   selectedId,
+  regionTopDocs,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
@@ -58,7 +65,9 @@ export default function MapContainer({
 
     const SOURCE_ID = 'municipalities';
     const FILL_ID = 'municipalities-fill';
+    const PHOTO_FILL_ID = 'municipalities-photo-fill'; // 写真用レイヤID
     const LINE_ID = 'municipalities-line';
+
 
     const ensureSourceAndLayers = () => {
       // 既存ソースがあればデータ更新だけ
@@ -81,6 +90,10 @@ export default function MapContainer({
             },
           });
         }
+
+        // 写真用レイヤ (FILL_IDの上に重ねる) -> 個別のimage sourceで扱うためここでは定義しない
+
+
 
         // 輪郭線レイヤ
         if (!map.getLayer(LINE_ID)) {
@@ -134,10 +147,14 @@ export default function MapContainer({
     if (!map || !onAreaClick) return;
 
     const FILL_ID = 'municipalities-fill';
+    const PHOTO_FILL_ID = 'municipalities-photo-fill';
+
 
     const handler = (e: mapboxgl.MapMouseEvent) => {
+      // PHOTO_FILL_ID は削除されたので FILL_ID のみ対象にする
       const features = map.queryRenderedFeatures(e.point, { layers: [FILL_ID] }) as any[];
       const hit = features[0];
+
       if (!hit) return;
 
       const props = hit.properties as MunicipalityProperties;
@@ -291,11 +308,15 @@ export default function MapContainer({
   }, [selectedId, geoJsonData]);
 
   // ⑤.8 ホバー時にポインタ形状を変える（わかりやすさ向上）
+
+
+  // ⑤.8 ホバー時にポインタ形状を変える（わかりやすさ向上）
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
     const FILL_ID = 'municipalities-fill';
+    const PHOTO_FILL_ID = 'municipalities-photo-fill';
 
     const enter = () => {
       map.getCanvas().style.cursor = 'pointer';
@@ -306,12 +327,101 @@ export default function MapContainer({
 
     map.on('mouseenter', FILL_ID, enter);
     map.on('mouseleave', FILL_ID, leave);
+    map.on('mouseenter', PHOTO_FILL_ID, enter);
+    map.on('mouseleave', PHOTO_FILL_ID, leave);
 
     return () => {
       map.off('mouseenter', FILL_ID, enter);
       map.off('mouseleave', FILL_ID, leave);
+      map.off('mouseenter', PHOTO_FILL_ID, enter);
+      map.off('mouseleave', PHOTO_FILL_ID, leave);
     };
   }, []);
+
+  // ⑦ 画像の読み込みとGeoJSONの更新 (image sourceを使用)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !geoJsonData || !regionTopDocs) return;
+
+    // クリーンアップ用: 追加したレイヤとソースのIDを保持
+    const addedIds: string[] = [];
+
+    const updateMapImages = async () => {
+      // 既存の画像レイヤ/ソースを削除 (再描画時)
+      // Note: useEffectのクリーンアップ関数でも行うが、念のためここでもチェックしても良い
+      // 今回はクリーンアップ関数に任せる
+
+      for (const doc of regionTopDocs) {
+        const feature = geoJsonData.features.find((f) => {
+          const props = f.properties as MunicipalityProperties;
+          return props.id === doc.regionId;
+        });
+
+        if (!feature) continue;
+
+        // 画像生成 (切り抜き & 座標計算)
+        const result = await generateClippedRegionImage(feature as any, doc.imageUrl);
+        if (!result) continue;
+
+        const sourceId = `img-source-${doc.regionId}`;
+        const layerId = `img-layer-${doc.regionId}`;
+
+        // 既に存在する場合はスキップ (あるいは更新？今回は追加のみ想定)
+        if (map.getSource(sourceId)) continue;
+
+        map.addSource(sourceId, {
+          type: 'image',
+          url: result.url,
+          coordinates: result.coordinates,
+        });
+
+        // 塗りつぶしレイヤ(FILL_ID)の上に、輪郭線(LINE_ID)の下に表示したい
+        // LINE_IDの前に挿入する
+        const LINE_ID = 'municipalities-line';
+        const beforeId = map.getLayer(LINE_ID) ? LINE_ID : undefined;
+
+        map.addLayer(
+          {
+            id: layerId,
+            type: 'raster',
+            source: sourceId,
+            paint: {
+              'raster-opacity': 0.9,
+              'raster-fade-duration': 0,
+            },
+          },
+          beforeId
+        );
+
+        addedIds.push(doc.regionId);
+      }
+    };
+
+    if (map.isStyleLoaded()) {
+      updateMapImages();
+    } else {
+      map.once('load', updateMapImages);
+    }
+
+    return () => {
+      // マップが破棄されている場合は処理しない
+      if (!mapRef.current) return;
+
+      // クリーンアップ: 追加したレイヤとソースを削除
+      addedIds.forEach((id) => {
+        const layerId = `img-layer-${id}`;
+        const sourceId = `img-source-${id}`;
+        try {
+          if (map.getStyle() && map.getLayer(layerId)) map.removeLayer(layerId);
+          if (map.getStyle() && map.getSource(sourceId)) map.removeSource(sourceId);
+        } catch (e) {
+          console.warn('[Map Cleanup] Failed to remove layer/source:', e);
+        }
+      });
+    };
+  }, [geoJsonData, regionTopDocs]);
+
+
 
   // ⑥ 地図コンテナ
   return <div ref={containerRef} className="h-screen w-full" />;
