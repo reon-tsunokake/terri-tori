@@ -1,7 +1,12 @@
-'use client';
+"use client";
+
+// Prevent static prerendering for this page because it uses client-side
+// navigation hooks (`useSearchParams`). Force dynamic rendering so Next
+// won't attempt to prerender and will avoid the Suspense-with-CSR error.
+export const dynamic = 'force-dynamic';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, collectionGroup } from 'firebase/firestore';
 // パス解決エラー対策: プロジェクトルートまで戻って src から指定
 import { db } from '../../../src/lib/firebase';
 import Header from '../../../src/components/layout/Header';
@@ -21,10 +26,16 @@ type PostData = Omit<PostDocument, 'location'> & {
 };
 
 export default function SearchPage() {
+  // --- Query Parameters (read from window on client) ---
+  // We avoid `useSearchParams` to prevent Next.js prerender issues.
+
   // --- State ---
   const [posts, setPosts] = useState<PostData[]>([]);
   const [loading, setLoading] = useState(true);
   const [displayCount, setDisplayCount] = useState(18); // 表示する投稿数
+  type Region = { id: string; name: string };
+  const [regions, setRegions] = useState<Region[]>([]);
+  const [seasonList, setSeasonList] = useState<string[]>([]);
 
   // Filters
   const [selectedMunicipality, setSelectedMunicipality] = useState<string>('all');
@@ -33,6 +44,14 @@ export default function SearchPage() {
 
   // --- Data Fetching ---
   useEffect(() => {
+    // Read URL search params on client and set initial filters if present
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const areaId = params.get('areaId');
+      const seasonId = params.get('seasonId');
+      if (areaId && areaId !== '') setSelectedMunicipality(decodeURIComponent(areaId));
+      if (seasonId && seasonId !== '') setSelectedSeason(decodeURIComponent(seasonId));
+    }
     const fetchPosts = async () => {
       try {
         // クエリ: 作成日時の降順で全件取得
@@ -70,26 +89,54 @@ export default function SearchPage() {
     fetchPosts();
   }, []);
 
+  // --- Data Fetching for Regions ---
+  useEffect(() => {
+    const fetchRegions = async () => {
+      try {
+        const regionsSnapshot = await getDocs(collection(db, 'regions'));
+        const list: Region[] = regionsSnapshot.docs
+          .map(doc => {
+            const data: any = doc.data();
+            const name = typeof data.name === 'string' ? data.name : String(doc.id);
+            return { id: doc.id, name };
+          })
+          .sort((a, b) => a.name.localeCompare(b.name));
+        setRegions(list);
+      } catch (error) {
+        console.error("Error fetching regions:", error);
+      }
+    };
+
+    fetchRegions();
+  }, []);
+
   // --- Derived Filter Options ---
   const municipalityOptions = useMemo(() => {
-    const municipalities = new Set<string>();
-    posts.forEach(post => {
-      if (post.location?.municipality) {
-        municipalities.add(post.location.municipality);
+    return regions;
+  }, [regions]);
+
+  // --- Data Fetching for Seasons ---
+  useEffect(() => {
+    const fetchSeasons = async () => {
+      try {
+        const seasonsSnapshot = await getDocs(collection(db, 'seasons'));
+        const ids = seasonsSnapshot.docs
+          .map(doc => doc.data().seasonId)
+          .filter((id): id is string => typeof id === 'string')
+          .sort()
+          .reverse();
+        setSeasonList(ids);
+      } catch (error) {
+        console.error("Error fetching seasons:", error);
       }
-    });
-    return Array.from(municipalities).sort();
-  }, [posts]);
+    };
+
+    fetchSeasons();
+  }, []);
 
   const seasonOptions = useMemo(() => {
-    const seasons = new Set<string>();
-    posts.forEach(post => {
-      if (post.seasonId) {
-        seasons.add(post.seasonId);
-      }
-    });
-    return Array.from(seasons).sort().reverse();
-  }, [posts]);
+    return seasonList;
+  }, [seasonList]);
 
   // --- Filtering Logic ---
   const filteredPosts = useMemo(() => {
@@ -97,7 +144,7 @@ export default function SearchPage() {
 
     // 1. 地域フィルタ
     if (selectedMunicipality !== 'all') {
-      result = result.filter(post => post.location?.municipality === selectedMunicipality);
+      result = result.filter(post => (post as any).regionId === selectedMunicipality);
     }
 
     // 2. シーズンフィルタ
@@ -162,7 +209,7 @@ export default function SearchPage() {
             >
               <option value="all">全ての地域</option>
               {municipalityOptions.map((m) => (
-                <option key={m} value={m}>{m}</option>
+                <option key={m.id} value={m.id}>{m.name}</option>
               ))}
             </select>
 
