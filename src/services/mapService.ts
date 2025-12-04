@@ -48,7 +48,7 @@ export class MapService {
         const name = feature.properties.name || String(areaId || '不明なエリア');
         return Promise.resolve({
           name,
-          rankingLink: `/ranking?areaId=${encodeURIComponent(areaId)}&areaName=${encodeURIComponent(name)}`,
+          rankingLink: `/ranking?areaId=${encodeURIComponent(areaId)}&areaName=${encodeURIComponent(name)}${seasonId ? `&seasonId=${encodeURIComponent(seasonId)}` : ''}`,
           searchLink: `/search?areaId=${encodeURIComponent(areaId)}&areaName=${encodeURIComponent(name)}${seasonId ? `&seasonId=${encodeURIComponent(seasonId)}` : ''}`,
           currentSeasonId: seasonId,
         });
