@@ -1,7 +1,11 @@
 import {onSchedule} from "firebase-functions/v2/scheduler";
 import * as admin from "firebase-admin";
 import * as logger from "firebase-functions/logger";
-import {PostDocument, RegionTopDocument} from "../types/ranking";
+import {
+  PostDocument,
+  RegionTopDocument,
+  SeasonRankDocument,
+} from "../types/ranking";
 
 /**
  * 2時間ごとに実行されるスケジュール関数
@@ -38,6 +42,9 @@ export const updateDailyRanking = onSchedule(
 
       // トップランカー更新処理
       await updateTopRankers(db, currentSeasonId);
+
+      // 全体ランキング更新処理
+      await updateGlobalRanking(db, currentSeasonId);
 
       logger.info("ランキング更新処理が完了しました");
     } catch (error) {
@@ -123,4 +130,89 @@ async function updateTopRankers(
   }
 
   logger.info("トップランカー更新完了");
+}
+
+/**
+ * 全体ランキングを更新
+ * 各ユーザーの今シーズン最高いいね投稿を基にランク付け
+ */
+async function updateGlobalRanking(
+  db: admin.firestore.Firestore,
+  seasonId: string
+): Promise<void> {
+  logger.info("全体ランキング更新を開始します", {seasonId});
+
+  try {
+    // 今シーズンの全投稿をlikesCount降順で取得
+    const postsSnapshot = await db
+      .collection("posts")
+      .where("seasonId", "==", seasonId)
+      .orderBy("likesCount", "desc")
+      .get();
+
+    logger.info(`対象投稿数: ${postsSnapshot.size}`);
+
+    // ユーザーごとに全投稿のいいね数を合計
+    const userTotalLikes = new Map<string, number>();
+
+    postsSnapshot.docs.forEach((doc) => {
+      const data = doc.data() as PostDocument;
+      const userId = data.userId;
+      const currentTotal = userTotalLikes.get(userId) || 0;
+
+      // 合計いいね数を加算
+      userTotalLikes.set(userId, currentTotal + data.likesCount);
+    });
+
+    logger.info(`ランク対象ユーザー数: ${userTotalLikes.size}`);
+
+    // ソートして順位付与
+    const rankedUsers = Array.from(userTotalLikes.entries())
+      .map(([userId, allLikeCount]) => ({userId, allLikeCount}))
+      .sort((a, b) => b.allLikeCount - a.allLikeCount);
+
+    // バッチ更新
+    let batch = db.batch();
+    let batchCount = 0;
+    let updatedCount = 0;
+
+    rankedUsers.forEach((user, index) => {
+      const rank = index + 1;
+      const seasonRankRef = db
+        .collection("users")
+        .doc(user.userId)
+        .collection("seasonRanks")
+        .doc(seasonId);
+
+      const rankData: SeasonRankDocument = {
+        seasonId: seasonId,
+        rank: rank,
+        allLikeCount: user.allLikeCount,
+        updatedAt: admin.firestore.Timestamp.now(),
+      };
+
+      batch.set(seasonRankRef, rankData);
+      batchCount++;
+      updatedCount++;
+
+      // バッチが500件に達したらコミット
+      if (batchCount >= 500) {
+        batch.commit().then(() => {
+          logger.info(`バッチコミット完了: ${updatedCount}件更新済み`);
+        });
+        batch = db.batch();
+        batchCount = 0;
+      }
+    });
+
+    // 残りのバッチをコミット
+    if (batchCount > 0) {
+      await batch.commit();
+    }
+
+    logger.info(`全体ランキング更新完了: ${updatedCount}件`);
+  } catch (error) {
+    logger.error("全体ランキング更新でエラーが発生しました", {error});
+    throw error;
+  }
 }
