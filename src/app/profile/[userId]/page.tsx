@@ -4,11 +4,14 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { useAuth } from '../../../contexts/AuthContext';
 import { validateProfileForm } from '../../../utils/validation';
 import BottomNavigation from '../../../components/layout/BottomNavigation';
 import { getPosts } from '@/services/postService';
 import { UserService } from '@/services/userService';
+import { getExperienceForLevel, calculateLevel } from '@/utils/experience';
 import type { PostDocument, UserDocument } from '@/types/firestore';
 import { FaCamera, FaHeart, FaTrophy, FaStar, FaArrowLeft } from 'react-icons/fa';
 import { HiLocationMarker } from 'react-icons/hi';
@@ -48,41 +51,42 @@ export default function ProfilePage() {
   const [likedPosts, setLikedPosts] = useState<Array<PostDocument & { id: string }>>([]);
   const [likedPostsLoading, setLikedPostsLoading] = useState(false);
 
-  // ユーザー情報を取得
+  // ユーザー情報を取得（リアルタイムリスナー付き）
   useEffect(() => {
-    const fetchUserProfile = async () => {
-      if (!userId) return;
+    if (!userId || authLoading) return;
 
-      try {
-        setLoading(true);
-        
-        if (isOwnProfile && currentUserProfile) {
-          // 自分のプロフィール: AuthContextから取得
-          setProfileUser(currentUserProfile as UserDocument);
-          setDisplayName(currentUserProfile.displayName);
-          setBio(currentUserProfile.bio);
-          setLocation(currentUserProfile.location);
-        } else {
-          // 他人のプロフィール: Firestoreから取得
-          const userData = await UserService.getUser(userId);
-          if (userData) {
-            setProfileUser(userData);
-          } else {
-            setError('ユーザーが見つかりませんでした');
+    setLoading(true);
+
+    // Firestoreのリアルタイムリスナーを設定
+    const userRef = doc(db, 'users', userId);
+    const unsubscribe = onSnapshot(
+      userRef,
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const userData = docSnap.data() as UserDocument;
+          setProfileUser(userData);
+          
+          // 自分のプロフィールの場合は編集フォームも更新
+          if (isOwnProfile) {
+            setDisplayName(userData.displayName || '');
+            setBio(userData.bio || '');
+            setLocation(userData.location || '');
           }
+        } else {
+          setError('ユーザーが見つかりませんでした');
         }
-      } catch (error) {
+        setLoading(false);
+      },
+      (error) => {
         console.error('ユーザー取得エラー:', error);
         setError('ユーザー情報の取得に失敗しました');
-      } finally {
         setLoading(false);
       }
-    };
+    );
 
-    if (!authLoading) {
-      fetchUserProfile();
-    }
-  }, [userId, isOwnProfile, currentUserProfile, authLoading]);
+    // クリーンアップ
+    return () => unsubscribe();
+  }, [userId, isOwnProfile, authLoading]);
 
   // 投稿を取得
   useEffect(() => {
@@ -471,41 +475,56 @@ export default function ProfilePage() {
                 </h3>
               
                 {/* レベル＆経験値 */}
-                <div className="bg-gradient-to-r from-amber-50 to-yellow-50 rounded-xl p-4 border border-amber-200">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-16 h-16 bg-gradient-to-r from-amber-400 to-yellow-400 rounded-full flex items-center justify-center shadow-lg">
-                        <span className="text-white font-bold text-2xl">{profileUser.level || 1}</span>
-                      </div>
-                      <div>
-                        <div className="text-lg font-bold text-amber-700">レベル {profileUser.level || 1}</div>
-                        <div className="text-sm text-amber-600">{profileUser.experience || 0} XP</div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xs text-amber-600">次のレベルまで</div>
-                      <div className="text-lg font-bold text-amber-700">
-                        {100 - ((profileUser.experience || 0) % 100)} XP
-                      </div>
-                    </div>
-                  </div>
+                {(() => {
+                  const currentExp = profileUser.experience || 0;
+                  const currentLevel = profileUser.level || calculateLevel(currentExp);
+                  const currentLevelExp = getExperienceForLevel(currentLevel);
+                  const nextLevelExp = getExperienceForLevel(currentLevel + 1);
+                  const expInCurrentLevel = currentExp - currentLevelExp;
+                  const expNeededForNextLevel = nextLevelExp - currentLevelExp;
+                  const expToNextLevel = nextLevelExp - currentExp;
+                  const progressPercent = expNeededForNextLevel > 0 
+                    ? Math.min(100, Math.floor((expInCurrentLevel / expNeededForNextLevel) * 100))
+                    : 100;
 
-                  {/* 経験値バー */}
-                  <div className="mb-2">
-                    <div className="flex justify-between text-xs text-amber-600 mb-1">
-                      <span>経験値</span>
-                      <span>{((profileUser.experience || 0) % 100)}/100</span>
+                  return (
+                    <div className="bg-gradient-to-r from-amber-50 to-yellow-50 rounded-xl p-4 border border-amber-200">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center space-x-3">
+                          <div className="w-16 h-16 bg-gradient-to-r from-amber-400 to-yellow-400 rounded-full flex items-center justify-center shadow-lg">
+                            <span className="text-white font-bold text-2xl">{currentLevel}</span>
+                          </div>
+                          <div>
+                            <div className="text-lg font-bold text-amber-700">レベル {currentLevel}</div>
+                            <div className="text-sm text-amber-600">{currentExp} XP</div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-xs text-amber-600">次のレベルまで</div>
+                          <div className="text-lg font-bold text-amber-700">
+                            {expToNextLevel} XP
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 経験値バー */}
+                      <div className="mb-2">
+                        <div className="flex justify-between text-xs text-amber-600 mb-1">
+                          <span>経験値</span>
+                          <span>{expInCurrentLevel}/{expNeededForNextLevel}</span>
+                        </div>
+                        <div className="w-full bg-amber-200 rounded-full h-3">
+                          <div 
+                            className="bg-gradient-to-r from-amber-400 to-yellow-400 h-3 rounded-full transition-all duration-500 shadow-sm"
+                            style={{
+                              width: `${progressPercent}%`
+                            }}
+                          ></div>
+                        </div>
+                      </div>
                     </div>
-                    <div className="w-full bg-amber-200 rounded-full h-3">
-                      <div 
-                        className="bg-gradient-to-r from-amber-400 to-yellow-400 h-3 rounded-full transition-all duration-500 shadow-sm"
-                        style={{
-                          width: `${((profileUser.experience || 0) % 100)}%`
-                        }}
-                      ></div>
-                    </div>
-                  </div>
-                </div>
+                  );
+                })()}
 
                 {/* 獲得した実績 */}
                 <div>

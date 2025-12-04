@@ -1,12 +1,14 @@
 import {
   doc,
-  getDoc,
   writeBatch,
   increment,
   serverTimestamp,
+  getDoc,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { PostLikeDocument } from '@/types/firestore';
+import { UserService } from './userService';
+import { EXPERIENCE_POINTS } from '@/utils/experience';
 
 // コレクション名
 const POSTS_COLLECTION = 'posts';
@@ -52,6 +54,13 @@ export async function toggleLike(
     }
 
     await batch.commit();
+
+    // いいねした人の経験値を更新（バッチコミット後に非同期で実行）
+    // いいね追加時は+2pt、いいね削除時は-2pt
+    const points = isLiked ? -EXPERIENCE_POINTS.LIKE : EXPERIENCE_POINTS.LIKE;
+    UserService.addExperience(userId, points).catch((err) =>
+      console.error('Error updating liker experience:', err)
+    );
   } catch (error) {
     console.error('Error toggling like:', error);
     throw error;

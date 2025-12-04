@@ -218,8 +218,12 @@ export class UserService {
 
   /**
    * ユーザーの経験値を追加
+   * @param uid ユーザーID
+   * @param points 追加するポイント（負の値で減算も可能）
    */
   static async addExperience(uid: string, points: number): Promise<void> {
+    const { calculateLevel } = await import('@/utils/experience');
+    
     try {
       console.log('Adding experience points:', uid, points);
       const userRef = doc(db, 'users', uid);
@@ -228,9 +232,7 @@ export class UserService {
       if (userDoc.exists()) {
         const currentData = userDoc.data() as UserDocument;
         const newExperience = Math.max(0, (currentData.experience ?? 0) + points);
-        
-        // レベルアップ判定（100経験値で1レベルアップする例）
-        const newLevel = Math.floor(newExperience / 100) + 1;
+        const newLevel = calculateLevel(newExperience);
         
         await setDoc(userRef, {
           experience: newExperience,
