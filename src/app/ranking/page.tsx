@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { collection, getDocs, query, orderBy, doc, getDoc } from 'firebase/firestore';
 // 相対パスの修正: src/app/ranking/ から src/ は2階層上 (../../)
 import { db } from '../../lib/firebase';
@@ -37,6 +37,7 @@ type RankingPostData = LightPostData & {
 
 export default function RankingPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useAuth(); // 現在のログインユーザー
   
   // 軽量データ（全件）
@@ -54,6 +55,35 @@ export default function RankingPage() {
   
   // 地域名キャッシュ（フィルター用）
   const [regionNameCache, setRegionNameCache] = useState<Map<string, string>>(new Map());
+
+  // 初期フィルタ（マップの詳細から渡されたクエリを反映）
+  useEffect(() => {
+    const applyQueryFilters = async () => {
+      if (!searchParams) return;
+      const areaId = searchParams.get('areaId');
+      const areaName = searchParams.get('areaName');
+      const seasonId = searchParams.get('seasonId');
+
+      if (areaName) {
+        setSelectedMunicipality(areaName);
+      } else if (areaId) {
+        // areaId が渡され、かつ地域名が未提供の場合は getMunicipalityName で取得を試みる
+        try {
+          const name = await getMunicipalityName(areaId);
+          if (name) setSelectedMunicipality(name);
+        } catch (e) {
+          console.error('Failed to resolve areaId to name:', e);
+        }
+      }
+
+      if (seasonId) {
+        setSelectedSeason(seasonId);
+      }
+    };
+
+    applyQueryFilters();
+    // searchParams の変化時に再実行
+  }, [searchParams]);
 
   // 無限スクロールのハンドリング
   useEffect(() => {
@@ -99,16 +129,30 @@ export default function RankingPage() {
 
         setLightPosts(posts);
         
-        // 地域名キャッシュを構築（フィルター用）
-        const regionIds = [...new Set(posts.map(p => p.regionId).filter(Boolean))] as string[];
-        const newRegionCache = new Map<string, string>();
-        await Promise.all(
-          regionIds.map(async (regionId) => {
-            const name = await getMunicipalityName(regionId);
-            if (name) newRegionCache.set(regionId, name);
-          })
-        );
-        setRegionNameCache(newRegionCache);
+        // 地域名キャッシュを `regions` コレクションから取得（regions/{regionId}.name）
+        try {
+          const regionsSnapshot = await getDocs(collection(db, 'regions'));
+          const newRegionCache = new Map<string, string>();
+          regionsSnapshot.docs.forEach((docSnap) => {
+            const data = docSnap.data() as any;
+            if (data && data.name) {
+              newRegionCache.set(docSnap.id, data.name);
+            }
+          });
+          setRegionNameCache(newRegionCache);
+        } catch (e) {
+          console.error('Failed to fetch regions collection:', e);
+          // フォールバック: 投稿から名前を解決
+          const regionIds = [...new Set(posts.map(p => p.regionId).filter(Boolean))] as string[];
+          const newRegionCache = new Map<string, string>();
+          await Promise.all(
+            regionIds.map(async (regionId) => {
+              const name = await getMunicipalityName(regionId);
+              if (name) newRegionCache.set(regionId, name);
+            })
+          );
+          setRegionNameCache(newRegionCache);
+        }
       } catch (error) {
         console.error("Error fetching ranking data:", error);
       } finally {
