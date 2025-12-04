@@ -1,7 +1,11 @@
 'use client';
 
+// Prevent static prerendering for this page because it uses client-side
+// navigation hooks and URL search params. Force dynamic rendering.
+export const dynamic = 'force-dynamic';
+
 import React, { useState, useEffect, useMemo } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { collection, getDocs, query, orderBy, doc, getDoc } from 'firebase/firestore';
 // 相対パスの修正: src/app/ranking/ から src/ は2階層上 (../../)
 import { db } from '../../lib/firebase';
@@ -37,7 +41,6 @@ type RankingPostData = LightPostData & {
 
 export default function RankingPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { user } = useAuth(); // 現在のログインユーザー
   
   // 軽量データ（全件）
@@ -59,13 +62,16 @@ export default function RankingPage() {
   // 初期フィルタ（マップの詳細から渡されたクエリを反映）
   useEffect(() => {
     const applyQueryFilters = async () => {
-      if (!searchParams) return;
-      const areaId = searchParams.get('areaId');
-      const areaName = searchParams.get('areaName');
-      const seasonId = searchParams.get('seasonId');
+      // ウィンドウが定義されている場合のみクライアント側で実行
+      if (typeof window === 'undefined') return;
+      
+      const params = new URLSearchParams(window.location.search);
+      const areaId = params.get('areaId');
+      const areaName = params.get('areaName');
+      const seasonId = params.get('seasonId');
 
       if (areaName) {
-        setSelectedMunicipality(areaName);
+        setSelectedMunicipality(decodeURIComponent(areaName));
       } else if (areaId) {
         // areaId が渡され、かつ地域名が未提供の場合は getMunicipalityName で取得を試みる
         try {
@@ -77,13 +83,13 @@ export default function RankingPage() {
       }
 
       if (seasonId) {
-        setSelectedSeason(seasonId);
+        setSelectedSeason(decodeURIComponent(seasonId));
       }
     };
 
     applyQueryFilters();
-    // searchParams の変化時に再実行
-  }, [searchParams]);
+    // マウント時のみ実行（URLの初期パラメータを反映）
+  }, []);
 
   // 無限スクロールのハンドリング
   useEffect(() => {
