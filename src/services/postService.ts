@@ -22,6 +22,8 @@ import {
   PostDocument,
   CreatePostData,
 } from '@/types/firestore';
+import { UserService } from './userService';
+import { EXPERIENCE_POINTS } from '@/utils/experience';
 
 // コレクション名
 const POSTS_COLLECTION = 'posts';
@@ -45,6 +47,12 @@ export async function createPost(data: CreatePostData): Promise<string> {
     };
 
     const docRef = await addDoc(collection(db, POSTS_COLLECTION), postData);
+
+    // 投稿後に経験値を+10pt
+    UserService.addExperience(data.userId, EXPERIENCE_POINTS.POST).catch((err) =>
+      console.error('Error updating experience after post:', err)
+    );
+
     return docRef.id;
   } catch (error) {
     console.error('Error creating post:', error);
