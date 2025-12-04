@@ -36,3 +36,14 @@ export interface PostDocument {
   createdAt: admin.firestore.Timestamp;
   location: admin.firestore.GeoPoint;
 }
+
+/**
+ * シーズンランクドキュメント構造
+ * users/{userId}/seasonRanks/{seasonId} に保存される
+ */
+export interface SeasonRankDocument {
+  seasonId: string; // シーズンID (例: "2025-12")
+  rank: number; // 全体順位 (1, 2, 3...)
+  allLikeCount: number; // 全投稿の合計いいね数
+  updatedAt: admin.firestore.Timestamp; // 更新日時
+}

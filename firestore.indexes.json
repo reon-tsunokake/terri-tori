@@ -52,6 +52,15 @@
       "collectionGroup": "posts",
       "queryScope": "COLLECTION",
       "fields": [
+        { "fieldPath": "regionId", "order": "ASCENDING" },
+        { "fieldPath": "seasonId", "order": "ASCENDING" },
+        { "fieldPath": "likesCount", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "posts",
+      "queryScope": "COLLECTION",
+      "fields": [
         { "fieldPath": "seasonId", "order": "ASCENDING" },
         { "fieldPath": "regionId", "order": "ASCENDING" },
         { "fieldPath": "likesCount", "order": "DESCENDING" }
