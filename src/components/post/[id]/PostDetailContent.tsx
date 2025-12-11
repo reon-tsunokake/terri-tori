@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { PostDocument, UserDocument } from '../../../types/firestore';
 import { getMunicipalityName, getPrefectureName } from '../../../utils/location';
 import { fetchLikeStatus, useToggleLike } from '../../../hooks/useToggleLike';
@@ -125,8 +126,12 @@ export default function PostDetailContent({ post, onBack }: PostDetailContentPro
 
               {/* 投稿者情報といいねボタン */}
               <div className="flex items-center gap-4">
-                {/* 投稿者情報 */}
-                <div className="flex items-center gap-2">
+                {/* 投稿者情報 - プロフィールへのリンク */}
+                <Link
+                  href={`/profile/${post.userId}`}
+                  className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   {postAuthor?.photoURL ? (
                     <img
                       src={postAuthor.photoURL}
@@ -141,7 +146,7 @@ export default function PostDetailContent({ post, onBack }: PostDetailContentPro
                   <span className="text-white font-semibold text-base drop-shadow-lg">
                     {postAuthor?.displayName || '読み込み中...'}
                   </span>
-                </div>
+                </Link>
 
                 {/* いいねボタン */}
                 <LikeButton

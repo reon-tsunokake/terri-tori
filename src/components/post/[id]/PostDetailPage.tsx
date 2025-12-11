@@ -3,10 +3,8 @@
 import React, { useEffect, useState } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
-import BottomNavigation from '../../layout/BottomNavigation';
 import { PostDocument } from '../../../types/firestore';
 import PostDetailContent from './PostDetailContent';
-import PostDetailHeader from './PostDetailHeader';
 
 export default function PostDetailPage() {
   const [postId, setPostId] = useState<string | null>(null);
@@ -77,11 +75,10 @@ export default function PostDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-black pb-20">
+    <div className="min-h-screen bg-black">
       <main>
         <PostDetailContent post={post} onBack={handleBack} />
       </main>
-      <BottomNavigation />
     </div>
   );
 }
