@@ -56,6 +56,14 @@ export const LocationProvider = ({ children }: { children: ReactNode }) => {
   const reverseGeocode = async (lat: number, lon: number) => {
     try {
       const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
+      
+      if (!MAPBOX_TOKEN) {
+        console.error('Mapbox access token is not configured');
+        return { city: null, prefecture: null };
+      }
+      
+      // Mapbox APIはaccess_tokenパラメータを要求（仕様上の制限）
+      // HTTPSで送信されるため、中間者攻撃のリスクは低い
       const response = await fetch(
         `https://api.mapbox.com/geocoding/v5/mapbox.places/${lon},${lat}.json?access_token=${MAPBOX_TOKEN}&language=ja`
       );
