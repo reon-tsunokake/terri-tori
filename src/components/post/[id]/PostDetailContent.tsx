@@ -8,6 +8,7 @@ import { fetchLikeStatus, useToggleLike } from '../../../hooks/useToggleLike';
 import { useAuth } from '../../../contexts/AuthContext';
 import LikeButton from '../../LikeButton/LikeButton';
 import { UserService } from '../../../services/userService';
+import toast from 'react-hot-toast';
 import { HiX } from 'react-icons/hi';
 
 interface PostDetailContentProps {
@@ -29,6 +30,15 @@ export default function PostDetailContent({ post, onBack }: PostDetailContentPro
     initialIsLiked,
     initialLikesCount: post.likesCount || 0,
   });
+
+  // いいねが未押下→押下になったときトースト表示
+  const [prevLiked, setPrevLiked] = useState(initialIsLiked);
+  useEffect(() => {
+    if (!prevLiked && isLiked) {
+      toast.success('位置が確認できるようになりました');
+    }
+    setPrevLiked(isLiked);
+  }, [isLiked, prevLiked]);
 
   useEffect(() => {
     const fetchLocation = async () => {
@@ -174,6 +184,17 @@ export default function PostDetailContent({ post, onBack }: PostDetailContentPro
           </div>
         </div>
       </div>
-    </div>
+
+    {/* 右下：いいね済みのときのみ「位置を確認する」ボタンを表示 */}
+    {isLiked && (
+      <button
+        className="fixed bottom-6 right-6 z-50 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-full shadow-lg transition-colors duration-200"
+        style={{ pointerEvents: 'auto' }}
+        onClick={() => alert('位置を確認するボタンが押されました')}
+      >
+        位置を確認する
+      </button>
+    )}
+  </div>
   );
 }
