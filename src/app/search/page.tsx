@@ -14,6 +14,8 @@ import BottomNavigation from '../../../src/components/layout/BottomNavigation';
 import { PostDocument, UserDocument } from '../../../src/types/firestore';
 import { UserService } from '../../../src/services/userService';
 
+import useRequireAuth from '@/hooks/useRequireAuth';
+
 // 型定義の補完
 type PostData = Omit<PostDocument, 'location'> & {
   id: string;
@@ -26,6 +28,8 @@ type PostData = Omit<PostDocument, 'location'> & {
 };
 
 export default function SearchPage() {
+  // 未ログインならリダイレクト
+  useRequireAuth(true);
   // --- Query Parameters (read from window on client) ---
   // We avoid `useSearchParams` to prevent Next.js prerender issues.
 

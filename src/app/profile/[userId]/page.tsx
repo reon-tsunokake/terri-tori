@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '../../../contexts/AuthContext';
+import useRequireAuth from '@/hooks/useRequireAuth';
 import { validateProfileForm } from '../../../utils/validation';
 import BottomNavigation from '../../../components/layout/BottomNavigation';
 import { getPosts } from '@/services/postService';
@@ -24,7 +25,9 @@ type TabType = 'personal' | 'status' | 'posts' | 'likes';
 export default function ProfilePage() {
   const params = useParams();
   const router = useRouter();
-  const { user: currentUser, userProfile: currentUserProfile, updateUserProfile, loading: authLoading, logout } = useAuth();
+  // 未ログインならリダイレクト
+  const { user: currentUser, loading: authLoading } = useRequireAuth(true);
+  const { userProfile: currentUserProfile, updateUserProfile, logout } = useAuth();
   const userId = params.userId as string;
 
   // 自分のプロフィールかどうか

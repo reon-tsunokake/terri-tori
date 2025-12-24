@@ -54,11 +54,7 @@ export default function Home() {
     const [regionTopDocs, setRegionTopDocs] = useState<RegionTopDocument[]>([]);
 
 
-    useEffect(() => {
-        if (!loading && !user) {
-            router.push('/login');
-        }
-    }, [loading, user, router]);
+
 
     useEffect(() => {
         let isMounted = true;
@@ -120,7 +116,7 @@ export default function Home() {
         }
     };
 
-    if (loading || !user) {
+    if (loading) {
         return (
             <main className="flex min-h-screen flex-col items-center justify-center bg-gray-100">
                 <div className="text-lg text-gray-600">読み込み中...</div>
@@ -130,8 +126,8 @@ export default function Home() {
 
     const heroUserName =
         userProfile?.displayName ||
-        user.displayName ||
-        user.email?.split('@')[0] ||
+        user?.displayName ||
+        user?.email?.split('@')[0] ||
         'Terri-toriユーザー';
 
     return (
@@ -170,7 +166,7 @@ export default function Home() {
                 )}
             </div>
 
-            {user && <BottomNavigation />}
+            <BottomNavigation />
             <CameraButton />
 
             <SemiModal
