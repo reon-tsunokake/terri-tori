@@ -151,9 +151,10 @@ export default function MapContainer({
 
 
     const handler = (e: mapboxgl.MapMouseEvent) => {
-      // PHOTO_FILL_ID は削除されたので FILL_ID のみ対象にする
-      const features = map.queryRenderedFeatures(e.point, { layers: [FILL_ID] }) as any[];
-      const hit = features[0];
+      // 🔧 修正7: レイヤーを指定せずクリック位置のすべてのフィーチャを取得し、
+      // municipalities ソースのものを探す（画像レイヤーの下のFILL_IDも検出可能）
+      const allFeatures = map.queryRenderedFeatures(e.point) as any[];
+      const hit = allFeatures.find((f) => f.source === 'municipalities');
 
       if (!hit) return;
 
@@ -188,9 +189,9 @@ export default function MapContainer({
     };
 
     const attach = () => {
-      if (map.getLayer(FILL_ID)) {
-        map.on('click', FILL_ID, handler);
-      }
+      // 🔧 修正7: マップ全体のクリックイベントをリスンする
+      // （特定レイヤーではなく、ハンドラー内でソースをフィルタリング）
+      map.on('click', handler);
     };
 
     if (map.isStyleLoaded()) {
@@ -200,7 +201,7 @@ export default function MapContainer({
     }
 
     return () => {
-      map.off('click', FILL_ID, handler);
+      map.off('click', handler);
     };
   }, [onAreaClick]);
 
@@ -412,11 +413,10 @@ export default function MapContainer({
             coordinates: result.coordinates,
           });
 
-          // 🔧 修正6: 画像レイヤーをFILL_IDの下に配置してクリックイベントを通す
-          // beforeId に FILL_ID を指定することで、画像が FILL_ID の下層に配置され、
-          // クリックイベントが FILL_ID に届くようになる
-          const FILL_ID = 'municipalities-fill';
-          const beforeId = map.getLayer(FILL_ID) ? FILL_ID : undefined;
+          // 🔧 修正6&8: 画像レイヤーをLINE_IDの下、FILL_IDの上に配置
+          // これにより画像が表示され、クリックハンドラーはソースベースで検出するため動作する
+          const LINE_ID = 'municipalities-line';
+          const beforeId = map.getLayer(LINE_ID) ? LINE_ID : undefined;
 
           map.addLayer(
             {
