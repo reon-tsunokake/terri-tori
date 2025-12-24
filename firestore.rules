@@ -27,7 +27,8 @@ service cloud.firestore {
 
     // 投稿
     match /posts/{postId} {
-      allow read: if request.auth != null;
+      // ゲストも閲覧可能に変更
+      allow read: if request.auth != null ;
 
       // 投稿作成
       allow create: if request.auth != null 
@@ -67,18 +68,19 @@ service cloud.firestore {
 
     // シーズン
     match /seasons/{seasonId} {
-      allow read: if request.auth != null;
+      allow read: if true;
       allow write: if false;
 
       match /regionTop/{regionId} {
-        allow read: if request.auth != null;
+        // ゲストも閲覧可能に変更
+        allow read: if true;
         allow write: if false;
       }
     }
 
     // 地域
     match /regions/{regionId} {
-      allow read: if request.auth != null;
+      allow read: if true;
       allow write: if false;
     }
 

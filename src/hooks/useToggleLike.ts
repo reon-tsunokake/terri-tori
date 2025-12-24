@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { toggleLike, checkIfUserLiked } from '@/services/likeService';
 
@@ -28,6 +28,10 @@ export function useToggleLike({
 }: UseToggleLikeProps): UseToggleLikeReturn {
   const { user } = useAuth();
   const [isLiked, setIsLiked] = useState(initialIsLiked);
+    // initialIsLikedが変化したらisLikedも同期
+    useEffect(() => {
+      setIsLiked(initialIsLiked);
+    }, [initialIsLiked]);
   const [likesCount, setLikesCount] = useState(initialLikesCount);
   const [isLoading, setIsLoading] = useState(false);
 
