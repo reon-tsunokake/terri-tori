@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { PostDocument, UserDocument } from '../../../types/firestore';
 import { getMunicipalityName, getPrefectureName } from '../../../utils/location';
 import { fetchLikeStatus, useToggleLike } from '../../../hooks/useToggleLike';
@@ -10,6 +11,16 @@ import LikeButton from '../../LikeButton/LikeButton';
 import { UserService } from '../../../services/userService';
 import toast from 'react-hot-toast';
 import { HiX } from 'react-icons/hi';
+
+// 動的インポート（SSRを無効化）
+const LocationPinMap = dynamic(() => import('../../map/LocationPinMap'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-full w-full items-center justify-center bg-gray-100">
+      <p className="text-sm text-gray-600">地図を読み込んでいます...</p>
+    </div>
+  ),
+});
 
 interface PostDetailContentProps {
   post: PostDocument & { id: string };
@@ -24,6 +35,7 @@ export default function PostDetailContent({ post, onBack }: PostDetailContentPro
   const [isLoadingLikeStatus, setIsLoadingLikeStatus] = useState(true);
   const [postAuthor, setPostAuthor] = useState<UserDocument | null>(null);
   const [showInfo, setShowInfo] = useState(true);
+  const [showMapModal, setShowMapModal] = useState(false);
 
   const { isLiked, likesCount, isLoading, handleToggleLike } = useToggleLike({
     postId: post.id,
@@ -186,14 +198,42 @@ export default function PostDetailContent({ post, onBack }: PostDetailContentPro
       </div>
 
     {/* 右下：いいね済みのときのみ「位置を確認する」ボタンを表示 */}
-    {isLiked && (
+    {isLiked && post.location && (
       <button
         className="fixed bottom-6 right-6 z-50 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-full shadow-lg transition-colors duration-200"
         style={{ pointerEvents: 'auto' }}
-        onClick={() => alert('位置を確認するボタンが押されました')}
+        onClick={() => setShowMapModal(true)}
       >
         位置を確認する
       </button>
+    )}
+
+    {/* 地図モーダル */}
+    {showMapModal && post.location && (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4">
+        <div className="relative w-full max-w-4xl h-[80vh] bg-white rounded-lg overflow-hidden shadow-2xl">
+          {/* 閉じるボタン */}
+          <button
+            onClick={() => setShowMapModal(false)}
+            className="absolute top-4 right-4 z-10 p-2 bg-white rounded-full shadow-lg hover:bg-gray-100 transition-colors"
+          >
+            <HiX className="w-6 h-6 text-gray-700" />
+          </button>
+          
+          {/* タイトル */}
+          <div className="absolute top-4 left-4 z-10 bg-white/95 backdrop-blur-sm rounded-lg px-4 py-2 shadow-lg">
+            <h3 className="text-lg font-bold text-gray-800">{locationName}</h3>
+            <p className="text-sm text-gray-600">{prefectureName}</p>
+          </div>
+
+          {/* マップ */}
+          <LocationPinMap
+            latitude={post.location.latitude}
+            longitude={post.location.longitude}
+            locationName={locationName}
+          />
+        </div>
+      </div>
     )}
   </div>
   );
