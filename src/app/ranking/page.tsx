@@ -10,6 +10,7 @@ import { collection, getDocs, query, orderBy, doc, getDoc } from 'firebase/fires
 // 相対パスの修正: src/app/ranking/ から src/ は2階層上 (../../)
 import { db } from '../../lib/firebase';
 import { useAuth } from '../../contexts/AuthContext';
+import useRequireAuth from '@/hooks/useRequireAuth';
 import Header from '../../components/layout/Header';
 import BottomNavigation from '../../components/layout/BottomNavigation';
 import { PostDocument, UserDocument } from '../../types/firestore';
@@ -41,7 +42,8 @@ type RankingPostData = LightPostData & {
 
 export default function RankingPage() {
   const router = useRouter();
-  const { user } = useAuth(); // 現在のログインユーザー
+  // 未ログインならリダイレクト
+  const { user } = useRequireAuth(true);
   
   // 軽量データ（全件）
   const [lightPosts, setLightPosts] = useState<LightPostData[]>([]);

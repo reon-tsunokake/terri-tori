@@ -14,8 +14,8 @@ export default function BottomNavigation() {
   const pathname = usePathname();
   const { user } = useAuth();
 
-  // プロフィールページへのリンク（ログイン済みなら自分のプロフィール、未ログインならログインページ）
-  const profileHref = user ? `/profile/${user.uid}` : '/login';
+  // プロフィールページへのリンク（ログイン済みなら自分のプロフィール、未ログインなら案内ページ）
+  const profileHref = user ? `/profile/${user.uid}` : '/require-login';
   // プロフィールタブのアクティブ判定
   const isProfileActive = pathname.startsWith('/profile');
 

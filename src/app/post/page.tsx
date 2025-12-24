@@ -1,12 +1,16 @@
 'use client';
 
 import { useState } from 'react';
+import useRequireAuth from '@/hooks/useRequireAuth';
 import PostForm from '@/components/Forms/PostForm';
 import { useLocation } from '@/contexts/LocationContext';
 
 export default function PostPage() {
   const [showPostForm, setShowPostForm] = useState(false);
   const { location } = useLocation();
+
+  // 未ログインならリダイレクト
+  useRequireAuth(true);
 
   return (
     <div className="min-h-screen bg-gray-50">
