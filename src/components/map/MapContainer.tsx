@@ -343,15 +343,15 @@ export default function MapContainer({
     const map = mapRef.current;
     if (!map || !geoJsonData || !regionTopDocs) return;
 
-    // クリーンアップ用: 追加したレイヤとソースのIDを保持
+    // キャンセルフラグ: アンマウント時や再実行時に処理を中断させる
+    let isMounted = true;
     const addedIds: string[] = [];
 
     const updateMapImages = async () => {
-      // 既存の画像レイヤ/ソースを削除 (再描画時)
-      // Note: useEffectのクリーンアップ関数でも行うが、念のためここでもチェックしても良い
-      // 今回はクリーンアップ関数に任せる
-
       for (const doc of regionTopDocs) {
+        // マウントされていない場合は処理を中断
+        if (!isMounted) return;
+
         const feature = geoJsonData.features.find((f) => {
           const props = f.properties as MunicipalityProperties;
           return props.id === doc.regionId;
@@ -361,39 +361,47 @@ export default function MapContainer({
 
         // 画像生成 (切り抜き & 座標計算)
         const result = await generateClippedRegionImage(feature as any, doc.imageUrl);
+
+        // await後に再度マウントチェック
+        if (!isMounted) return;
         if (!result) continue;
 
         const sourceId = `img-source-${doc.regionId}`;
         const layerId = `img-layer-${doc.regionId}`;
 
-        // 既に存在する場合はスキップ (あるいは更新？今回は追加のみ想定)
-        if (map.getSource(sourceId)) continue;
+        // 安全対策: 既存の同名レイヤー/ソースがあれば削除してから追加する
+        // これにより、競合状態などで残ってしまった「ゾンビレイヤー」を排除できる
+        try {
+          if (map.getLayer(layerId)) map.removeLayer(layerId);
+          if (map.getSource(sourceId)) map.removeSource(sourceId);
 
-        map.addSource(sourceId, {
-          type: 'image',
-          url: result.url,
-          coordinates: result.coordinates,
-        });
+          map.addSource(sourceId, {
+            type: 'image',
+            url: result.url,
+            coordinates: result.coordinates,
+          });
 
-        // 塗りつぶしレイヤ(FILL_ID)の上に、輪郭線(LINE_ID)の下に表示したい
-        // LINE_IDの前に挿入する
-        const LINE_ID = 'municipalities-line';
-        const beforeId = map.getLayer(LINE_ID) ? LINE_ID : undefined;
+          // 塗りつぶしレイヤ(FILL_ID)の下、輪郭線(LINE_ID)の下に表示
+          const LINE_ID = 'municipalities-line';
+          const beforeId = map.getLayer(LINE_ID) ? LINE_ID : undefined;
 
-        map.addLayer(
-          {
-            id: layerId,
-            type: 'raster',
-            source: sourceId,
-            paint: {
-              'raster-opacity': 0.9,
-              'raster-fade-duration': 0,
+          map.addLayer(
+            {
+              id: layerId,
+              type: 'raster',
+              source: sourceId,
+              paint: {
+                'raster-opacity': 0.9,
+                'raster-fade-duration': 0,
+              },
             },
-          },
-          beforeId
-        );
+            beforeId
+          );
 
-        addedIds.push(doc.regionId);
+          addedIds.push(doc.regionId);
+        } catch (e) {
+          console.error(`[Map Error] Failed to update image for region ${doc.regionId}:`, e);
+        }
       }
     };
 
@@ -404,10 +412,11 @@ export default function MapContainer({
     }
 
     return () => {
-      // マップが破棄されている場合は処理しない
+      isMounted = false;
+
       if (!mapRef.current) return;
 
-      // クリーンアップ: 追加したレイヤとソースを削除
+      // クリーンアップ: このEffectで追加したレイヤのみ削除
       addedIds.forEach((id) => {
         const layerId = `img-layer-${id}`;
         const sourceId = `img-source-${id}`;
