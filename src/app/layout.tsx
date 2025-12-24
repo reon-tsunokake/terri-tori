@@ -5,6 +5,7 @@ import { AuthProvider } from "../contexts/AuthContext";
 import Header from "../components/layout/Header";
 import { LocationProvider } from "../contexts/LocationContext";
 import { SeasonPostProvider } from "../contexts/SeasonPostContext";
+import { Toaster } from "react-hot-toast";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,6 +34,7 @@ export default function RootLayout({
       >
         <AuthProvider>
           <Header />
+          <Toaster position="top-center" toastOptions={{ duration: 3000 }} />
           <div className="pt-14 sm:pt-16 md:pt-20">
             <LocationProvider>
               <SeasonPostProvider>
