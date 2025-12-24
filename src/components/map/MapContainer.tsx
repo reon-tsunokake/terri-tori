@@ -348,6 +348,22 @@ export default function MapContainer({
     const addedIds: string[] = [];
 
     const updateMapImages = async () => {
+      // 🔧 修正1: マップが完全に準備完了するまで待機
+      // isStyleLoaded() だけでなく loaded() もチェックすることで、
+      // マップのすべてのリソースが読み込まれたことを保証
+      const waitForMapReady = (): Promise<void> => {
+        return new Promise((resolve) => {
+          if (map.loaded() && map.isStyleLoaded()) {
+            resolve();
+          } else {
+            // idleイベントはマップがアイドル状態（すべての非同期処理完了）になった時に発火
+            map.once('idle', () => resolve());
+          }
+        });
+      };
+
+      await waitForMapReady();
+
       for (const doc of regionTopDocs) {
         // マウントされていない場合は処理を中断
         if (!isMounted) return;
@@ -362,18 +378,33 @@ export default function MapContainer({
         // 画像生成 (切り抜き & 座標計算)
         const result = await generateClippedRegionImage(feature as any, doc.imageUrl);
 
-        // await後に再度マウントチェック
-        if (!isMounted) return;
+        // 🔧 修正2: await後に複数の状態をチェック
+        // - コンポーネントがアンマウントされていないか
+        // - マップインスタンスがまだ有効か
+        // - マップのスタイルがまだ読み込まれているか
+        if (!isMounted || !mapRef.current || !map.getStyle()) return;
         if (!result) continue;
 
         const sourceId = `img-source-${doc.regionId}`;
         const layerId = `img-layer-${doc.regionId}`;
 
-        // 安全対策: 既存の同名レイヤー/ソースがあれば削除してから追加する
-        // これにより、競合状態などで残ってしまった「ゾンビレイヤー」を排除できる
+        // 🔧 修正3: より詳細なエラーハンドリング
         try {
+          // 既存レイヤー/ソースの削除前にスタイルの存在を確認
+          if (!map.getStyle()) {
+            console.warn('[Map] Style is not loaded, skipping image update');
+            return;
+          }
+
           if (map.getLayer(layerId)) map.removeLayer(layerId);
           if (map.getSource(sourceId)) map.removeSource(sourceId);
+
+          // 🔧 修正4: ソース追加前にもう一度スタイルの確認
+          // 非同期処理中にスタイルが変更された可能性に対応
+          if (!map.getStyle()) {
+            console.warn('[Map] Style was removed during async operation');
+            return;
+          }
 
           map.addSource(sourceId, {
             type: 'image',
@@ -399,16 +430,19 @@ export default function MapContainer({
           );
 
           addedIds.push(doc.regionId);
+          console.log(`[Map] Successfully added image layer for region ${doc.regionId}`);
         } catch (e) {
           console.error(`[Map Error] Failed to update image for region ${doc.regionId}:`, e);
         }
       }
     };
 
+    // 🔧 修正5: loadイベントではなく、スタイル読み込み完了を確実に待つ
     if (map.isStyleLoaded()) {
       updateMapImages();
     } else {
-      map.once('load', updateMapImages);
+      // styledata イベントはスタイルのデータが完全に読み込まれた時に発火
+      map.once('styledata', updateMapImages);
     }
 
     return () => {
