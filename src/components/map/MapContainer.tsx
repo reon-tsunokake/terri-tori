@@ -78,15 +78,15 @@ export default function MapContainer({
         // ソース追加
         map.addSource(SOURCE_ID, { type: 'geojson', data: geoJsonData as any });
 
-        // ベースの面レイヤ（薄い色）
+        // ベースの面レイヤ（クリック検出用 - 完全に透明）
         if (!map.getLayer(FILL_ID)) {
           map.addLayer({
             id: FILL_ID,
             type: 'fill',
             source: SOURCE_ID,
             paint: {
-              'fill-color': '#bfdbfe',      // 薄い水色
-              'fill-opacity': 0.25,
+              'fill-color': '#000000',      // 色は何でもOK（見えないため）
+              'fill-opacity': 0,            // 完全に透明
             },
           });
         }
@@ -412,9 +412,11 @@ export default function MapContainer({
             coordinates: result.coordinates,
           });
 
-          // 塗りつぶしレイヤ(FILL_ID)の下、輪郭線(LINE_ID)の下に表示
-          const LINE_ID = 'municipalities-line';
-          const beforeId = map.getLayer(LINE_ID) ? LINE_ID : undefined;
+          // 🔧 修正6: 画像レイヤーをFILL_IDの下に配置してクリックイベントを通す
+          // beforeId に FILL_ID を指定することで、画像が FILL_ID の下層に配置され、
+          // クリックイベントが FILL_ID に届くようになる
+          const FILL_ID = 'municipalities-fill';
+          const beforeId = map.getLayer(FILL_ID) ? FILL_ID : undefined;
 
           map.addLayer(
             {
