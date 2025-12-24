@@ -13,3 +13,16 @@ export interface RegionTopDocument {
     score: number; // スコア
     updatedAt: Timestamp; // 更新日時
 }
+
+/**
+ * ユーザーランキングデータ
+ * 経験値ランキング表示用
+ */
+export interface UserRankingData {
+    uid: string;
+    displayName: string;
+    photoURL: string | null;
+    level: number;
+    experience: number;
+    rank?: number; // 順位（オプション）
+}

@@ -11,7 +11,7 @@ export const EXPERIENCE_POINTS = {
 } as const;
 
 // 最大レベル
-export const MAX_LEVEL = 100;
+export const MAX_LEVEL = 1000;
 
 /**
  * 指定レベルに必要な累積経験値を計算する
