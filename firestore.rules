@@ -30,10 +30,10 @@ service cloud.firestore {
       // ゲストも閲覧可能に変更
       allow read: if request.auth != null ;
 
-      // 投稿作成
+      // 投稿作成（groupIdを必須フィールドに追加）
       allow create: if request.auth != null 
                     && request.resource.data.userId == request.auth.uid
-                    && request.resource.data.keys().hasAll(['userId', 'regionId', 'seasonId', 'caption', 'location']);
+                    && request.resource.data.keys().hasAll(['userId', 'groupId', 'regionId', 'seasonId', 'caption', 'location']);
 
       // 投稿の更新：投稿者本人の編集 OR いいねによるlikesCount/scoreの更新
       allow update: if request.auth != null && (
@@ -66,15 +66,16 @@ service cloud.firestore {
       }
     }
 
-    // シーズン
+    // シーズン（新パス対応）
     match /seasons/{seasonId} {
       allow read: if true;
       allow write: if false;
 
-      match /regionTop/{regionId} {
-        // ゲストも閲覧可能に変更
+      // 新パス: グループ別のregionTop
+      match /groups/{groupId}/regionTop/{regionId} {
+        // 全グループ閲覧可能
         allow read: if true;
-        allow write: if false;
+        allow write: if false; // Cloud Functionsのみ
       }
     }
 

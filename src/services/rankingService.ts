@@ -1,4 +1,4 @@
-import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, limit, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { RegionTopDocument, UserRankingData } from '@/types/ranking';
 import { UserDocument } from '@/types/firestore';
@@ -7,12 +7,15 @@ export class RankingService {
     /**
      * 指定されたシーズンの地域トップ投稿を取得します。
      * @param seasonId シーズンID (例: "2023-12")
+     * @param groupId グループID (1, 2, 3)
      * @returns RegionTopDocumentの配列
      */
-    public static async getRegionTopDocuments(seasonId: string): Promise<RegionTopDocument[]> {
+    public static async getRegionTopDocuments(seasonId: string, groupId: number): Promise<RegionTopDocument[]> {
         try {
-            // seasons/{seasonId}/regionTop コレクションから全ドキュメントを取得
-            const q = query(collection(db, 'seasons', seasonId, 'regionTop'));
+            // 新パス: seasons/{seasonId}/groups/{groupId}/regionTop コレクションから全ドキュメントを取得
+            const q = query(
+                collection(db, 'seasons', seasonId, 'groups', String(groupId), 'regionTop')
+            );
             const snapshot = await getDocs(q);
 
             return snapshot.docs.map(doc => doc.data() as RegionTopDocument);
@@ -25,15 +28,25 @@ export class RankingService {
     /**
      * 経験値順でユーザーランキングを取得します。
      * @param limitCount 取得件数（デフォルト: 100）
+     * @param groupId グループID（指定した場合は該当グループのみ）
      * @returns UserRankingDataの配列（順位付き）
      */
-    public static async getUserRankingByExperience(limitCount: number = 100): Promise<UserRankingData[]> {
+    public static async getUserRankingByExperience(limitCount: number = 100, groupId?: number): Promise<UserRankingData[]> {
         try {
+            const constraints: any[] = [
+                orderBy('experience', 'desc'),
+                limit(limitCount)
+            ];
+            
+            // groupId が指定されている場合はフィルタを追加
+            if (groupId !== undefined) {
+                constraints.unshift(where('groupId', '==', groupId));
+            }
+            
             // users コレクションから経験値順で取得
             const q = query(
                 collection(db, 'users'),
-                orderBy('experience', 'desc'),
-                limit(limitCount)
+                ...constraints
             );
             const snapshot = await getDocs(q);
 

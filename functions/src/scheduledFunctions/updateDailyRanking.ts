@@ -56,7 +56,7 @@ export const updateDailyRanking = onSchedule(
 
 /**
  * 地域ごとのトップランカーを更新
- * 各regionIdでlikesCountが最も多い投稿を取得し、regionTopに保存
+ * グループごとに各regionIdでlikesCountが最も多い投稿を取得し、regionTopに保存
  */
 async function updateTopRankers(
   db: admin.firestore.Firestore,
@@ -64,10 +64,31 @@ async function updateTopRankers(
 ): Promise<void> {
   logger.info("トップランカー更新を開始します", {seasonId});
 
-  // 全regionIdを取得（投稿から）
+  const groups = [1, 2, 3];
+
+  // 各グループごとに並列処理
+  await Promise.all(groups.map((groupId) =>
+    updateTopRankersForGroup(db, seasonId, groupId)
+  ));
+
+  logger.info("トップランカー更新完了");
+}
+
+/**
+ * 指定グループの地域ごとのトップランカーを更新
+ */
+async function updateTopRankersForGroup(
+  db: admin.firestore.Firestore,
+  seasonId: string,
+  groupId: number
+): Promise<void> {
+  logger.info(`グループ ${groupId} のトップランカー更新を開始`, {seasonId, groupId});
+
+  // 該当グループの投稿のみ取得
   const postsSnapshot = await db
     .collection("posts")
     .where("seasonId", "==", seasonId)
+    .where("groupId", "==", groupId)
     .get();
 
   // regionIdを重複なく抽出
@@ -79,27 +100,31 @@ async function updateTopRankers(
     }
   });
 
-  logger.info(`対象地域数: ${regionIds.size}`);
+  logger.info(`グループ ${groupId} の対象地域数: ${regionIds.size}`);
 
+  // 新パス: seasons/{seasonId}/groups/{groupId}/regionTop
   const regionTopRef = db
     .collection("seasons")
     .doc(seasonId)
+    .collection("groups")
+    .doc(String(groupId))
     .collection("regionTop");
 
   // 各地域ごとにトップ投稿を更新
   for (const regionId of regionIds) {
     try {
-      // 該当地域の投稿をlikesCount降順で取得（トップ1件）
+      // 該当地域・グループの投稿をlikesCount降順で取得（トップ1件）
       const topPostSnapshot = await db
         .collection("posts")
         .where("seasonId", "==", seasonId)
+        .where("groupId", "==", groupId)
         .where("regionId", "==", regionId)
         .orderBy("likesCount", "desc")
         .limit(1)
         .get();
 
       if (topPostSnapshot.empty) {
-        logger.warn(`地域 ${regionId} に投稿が見つかりません`);
+        logger.warn(`グループ ${groupId} - 地域 ${regionId} に投稿が見つかりません`);
         continue;
       }
 
@@ -110,6 +135,7 @@ async function updateTopRankers(
       const regionTopData: RegionTopDocument = {
         postId: topPostDoc.id,
         userId: topPostData.userId,
+        groupId: groupId, // groupId を追加
         regionId: topPostData.regionId,
         imageUrl: topPostData.imageUrl,
         likesCount: topPostData.likesCount,
@@ -120,16 +146,16 @@ async function updateTopRankers(
       // regionTopに保存（上書き）
       await regionTopRef.doc(regionId).set(regionTopData);
 
-      logger.info(`地域 ${regionId} のトップランカーを更新`, {
+      logger.info(`グループ ${groupId} - 地域 ${regionId} のトップランカーを更新`, {
         postId: topPostDoc.id,
         likesCount: topPostData.likesCount,
       });
     } catch (error) {
-      logger.error(`地域 ${regionId} のトップランカー更新でエラー`, {error});
+      logger.error(`グループ ${groupId} - 地域 ${regionId} のトップランカー更新でエラー`, {error});
     }
   }
 
-  logger.info("トップランカー更新完了");
+  logger.info(`グループ ${groupId} のトップランカー更新完了`);
 }
 
 /**
