@@ -4,7 +4,7 @@ import * as logger from "firebase-functions/logger";
 import {
   PostDocument,
   RegionTopDocument,
-  SeasonRankDocument,
+  // SeasonRankDocument, // 一時的に未使用
 } from "../types/ranking";
 
 /**
@@ -43,8 +43,8 @@ export const updateDailyRanking = onSchedule(
       // トップランカー更新処理
       await updateTopRankers(db, currentSeasonId);
 
-      // 全体ランキング更新処理
-      await updateGlobalRanking(db, currentSeasonId);
+      // 全体ランキング更新処理（一時的に無効化）
+      // await updateGlobalRanking(db, currentSeasonId);
 
       logger.info("ランキング更新処理が完了しました");
     } catch (error) {
@@ -64,10 +64,25 @@ async function updateTopRankers(
 ): Promise<void> {
   logger.info("トップランカー更新を開始します", {seasonId});
 
-  const groups = [1, 2, 3];
+  // シーズンドキュメントからアクティブなグループIDを取得
+  const seasonDoc = await db.collection("seasons").doc(seasonId).get();
+  if (!seasonDoc.exists) {
+    logger.warn(`シーズン ${seasonId} が見つかりません`);
+    return;
+  }
+
+  const seasonData = seasonDoc.data();
+  const groups = seasonData?.groups || [];
+
+  if (groups.length === 0) {
+    logger.warn(`シーズン ${seasonId} にアクティブなグループがありません`);
+    return;
+  }
+
+  logger.info(`${groups.length}個のグループを処理します: [${groups.join(', ')}]`);
 
   // 各グループごとに並列処理
-  await Promise.all(groups.map((groupId) =>
+  await Promise.all(groups.map((groupId: number) =>
     updateTopRankersForGroup(db, seasonId, groupId)
   ));
 
@@ -158,87 +173,87 @@ async function updateTopRankersForGroup(
   logger.info(`グループ ${groupId} のトップランカー更新完了`);
 }
 
-/**
- * 全体ランキングを更新
- * 各ユーザーの今シーズン最高いいね投稿を基にランク付け
- */
-async function updateGlobalRanking(
-  db: admin.firestore.Firestore,
-  seasonId: string
-): Promise<void> {
-  logger.info("全体ランキング更新を開始します", {seasonId});
+// /**
+//  * 全体ランキングを更新（一時的に無効化）
+//  * 各ユーザーの今シーズン最高いいね投稿を基にランク付け
+//  */
+// async function updateGlobalRanking(
+//   db: admin.firestore.Firestore,
+//   seasonId: string
+// ): Promise<void> {
+//   logger.info("全体ランキング更新を開始します", {seasonId});
 
-  try {
-    // 今シーズンの全投稿をlikesCount降順で取得
-    const postsSnapshot = await db
-      .collection("posts")
-      .where("seasonId", "==", seasonId)
-      .orderBy("likesCount", "desc")
-      .get();
+//   try {
+//     // 今シーズンの全投稿をlikesCount降順で取得
+//     const postsSnapshot = await db
+//       .collection("posts")
+//       .where("seasonId", "==", seasonId)
+//       .orderBy("likesCount", "desc")
+//       .get();
 
-    logger.info(`対象投稿数: ${postsSnapshot.size}`);
+//     logger.info(`対象投稿数: ${postsSnapshot.size}`);
 
-    // ユーザーごとに全投稿のいいね数を合計
-    const userTotalLikes = new Map<string, number>();
+//     // ユーザーごとに全投稿のいいね数を合計
+//     const userTotalLikes = new Map<string, number>();
 
-    postsSnapshot.docs.forEach((doc) => {
-      const data = doc.data() as PostDocument;
-      const userId = data.userId;
-      const currentTotal = userTotalLikes.get(userId) || 0;
+//     postsSnapshot.docs.forEach((doc) => {
+//       const data = doc.data() as PostDocument;
+//       const userId = data.userId;
+//       const currentTotal = userTotalLikes.get(userId) || 0;
 
-      // 合計いいね数を加算
-      userTotalLikes.set(userId, currentTotal + data.likesCount);
-    });
+//       // 合計いいね数を加算
+//       userTotalLikes.set(userId, currentTotal + data.likesCount);
+//     });
 
-    logger.info(`ランク対象ユーザー数: ${userTotalLikes.size}`);
+//     logger.info(`ランク対象ユーザー数: ${userTotalLikes.size}`);
 
-    // ソートして順位付与
-    const rankedUsers = Array.from(userTotalLikes.entries())
-      .map(([userId, allLikeCount]) => ({userId, allLikeCount}))
-      .sort((a, b) => b.allLikeCount - a.allLikeCount);
+//     // ソートして順位付与
+//     const rankedUsers = Array.from(userTotalLikes.entries())
+//       .map(([userId, allLikeCount]) => ({userId, allLikeCount}))
+//       .sort((a, b) => b.allLikeCount - a.allLikeCount);
 
-    // バッチ更新
-    let batch = db.batch();
-    let batchCount = 0;
-    let updatedCount = 0;
+//     // バッチ更新
+//     let batch = db.batch();
+//     let batchCount = 0;
+//     let updatedCount = 0;
 
-    rankedUsers.forEach((user, index) => {
-      const rank = index + 1;
-      const seasonRankRef = db
-        .collection("users")
-        .doc(user.userId)
-        .collection("seasonRanks")
-        .doc(seasonId);
+//     rankedUsers.forEach((user, index) => {
+//       const rank = index + 1;
+//       const seasonRankRef = db
+//         .collection("users")
+//         .doc(user.userId)
+//         .collection("seasonRanks")
+//         .doc(seasonId);
 
-      const rankData: SeasonRankDocument = {
-        seasonId: seasonId,
-        rank: rank,
-        allLikeCount: user.allLikeCount,
-        updatedAt: admin.firestore.Timestamp.now(),
-      };
+//       const rankData: SeasonRankDocument = {
+//         seasonId: seasonId,
+//         rank: rank,
+//         allLikeCount: user.allLikeCount,
+//         updatedAt: admin.firestore.Timestamp.now(),
+//       };
 
-      batch.set(seasonRankRef, rankData);
-      batchCount++;
-      updatedCount++;
+//       batch.set(seasonRankRef, rankData);
+//       batchCount++;
+//       updatedCount++;
 
-      // バッチが500件に達したらコミット
-      if (batchCount >= 500) {
-        batch.commit().then(() => {
-          logger.info(`バッチコミット完了: ${updatedCount}件更新済み`);
-        });
-        batch = db.batch();
-        batchCount = 0;
-      }
-    });
+//       // バッチが500件に達したらコミット
+//       if (batchCount >= 500) {
+//         batch.commit().then(() => {
+//           logger.info(`バッチコミット完了: ${updatedCount}件更新済み`);
+//         });
+//         batch = db.batch();
+//         batchCount = 0;
+//       }
+//     });
 
-    // 残りのバッチをコミット
-    if (batchCount > 0) {
-      await batch.commit();
-    }
+//     // 残りのバッチをコミット
+//     if (batchCount > 0) {
+//       await batch.commit();
+//     }
 
-    logger.info(`全体ランキング更新完了: ${updatedCount}件`);
-  } catch (error) {
-    logger.error("全体ランキング更新でエラーが発生しました", {error});
-    throw error;
-  }
-}
+//     logger.info(`全体ランキング更新完了: ${updatedCount}件`);
+//   } catch (error) {
+//     logger.error("全体ランキング更新でエラーが発生しました", {error});
+//     throw error;
+//   }
+// }
