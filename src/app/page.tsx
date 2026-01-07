@@ -19,8 +19,9 @@ import { RankingService } from '@/services/rankingService';
 import { RegionTopDocument } from '@/types/ranking';
 import { useSeasonPost } from '@/contexts/SeasonPostContext';
 import { HiChartBar, HiMagnifyingGlass } from 'react-icons/hi2';
-
-
+import GroupMapSelector from '@/components/map/GroupMapSelector';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 const DynamicMap = dynamic(() => import('@/components/map/MapContainer'), {
     ssr: false,
@@ -53,7 +54,10 @@ export default function Home() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [regionTopDocs, setRegionTopDocs] = useState<RegionTopDocument[]>([]);
 
-
+    // グループ選択機能用State
+    const [selectedGroup, setSelectedGroup] = useState<number>(1);
+    const [availableGroups, setAvailableGroups] = useState<number[]>([1]);
+    const [isGroupsLoaded, setIsGroupsLoaded] = useState(false); // グループ情報の読み込み完了フラグ
 
 
     useEffect(() => {
@@ -76,14 +80,57 @@ export default function Home() {
         };
     }, []);
 
+    // 1. シーズン情報から利用可能なグループを取得 & 2. ユーザーの所属に合わせて初期選択を設定
+    useEffect(() => {
+        const fetchGroupsAndInit = async () => {
+            if (!currentSeasonId) return;
+
+            let groups = [1, 2, 3]; // デフォルトフォールバック
+
+            try {
+                const seasonDocRef = doc(db, 'seasons', currentSeasonId);
+                const seasonSnap = await getDoc(seasonDocRef);
+
+                if (seasonSnap.exists()) {
+                    const data = seasonSnap.data();
+                    if (Array.isArray(data.groups) && data.groups.length > 0) {
+                        groups = data.groups.sort((a: number, b: number) => a - b);
+                    } else {
+                        // groupsフィールドがない場合はコレクションから...といったロジックも可だが、
+                        // ユーザー指示によりフィールドが存在する前提。念の為デフォルト維持
+                        console.warn('groups field not found in season doc, using default [1,2,3]');
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching season groups:', error);
+            }
+
+            setAvailableGroups(groups);
+
+            // 初期選択ロジック
+            // ロードが完了していない（初回）場合のみ設定する、もしくはユーザープロファイルが変わった場合
+            if (!isGroupsLoaded) {
+                if (userProfile?.groupId && groups.includes(userProfile.groupId)) {
+                    setSelectedGroup(userProfile.groupId);
+                } else {
+                    setSelectedGroup(groups[0] || 1); // ゲストまたは所属なしはグループ1(リスト先頭)
+                }
+                setIsGroupsLoaded(true);
+            }
+        };
+
+        fetchGroupsAndInit();
+    }, [currentSeasonId, userProfile, isGroupsLoaded]);
+
+    // 3. 選択されたグループのランキングデータを取得
     useEffect(() => {
         if (currentSeasonId) {
-            // グループ1のデータを取得（デフォルト）
-            RankingService.getRegionTopDocuments(currentSeasonId, 1)
+            console.log(`Fetching map for Season: ${currentSeasonId}, Group: ${selectedGroup}`);
+            RankingService.getRegionTopDocuments(currentSeasonId, selectedGroup)
                 .then(docs => setRegionTopDocs(docs))
                 .catch(err => console.error('Failed to fetch ranking docs:', err));
         }
-    }, [currentSeasonId]);
+    }, [currentSeasonId, selectedGroup]);
 
 
     const handleAreaClick = async (properties: MunicipalityProperties) => {
@@ -141,6 +188,13 @@ export default function Home() {
                     regionTopDocs={regionTopDocs}
                 />
 
+                {/* グループ選択Mapセレクター */}
+                <GroupMapSelector
+                    selectedGroup={selectedGroup}
+                    availableGroups={availableGroups}
+                    userGroup={userProfile?.groupId}
+                    onChange={setSelectedGroup}
+                />
 
                 {/* 現在地表示 */}
                 <LocationDisplay />
