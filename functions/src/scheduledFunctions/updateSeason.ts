@@ -1,4 +1,4 @@
-import {onSchedule} from "firebase-functions/v2/scheduler";
+import { onSchedule } from "firebase-functions/v2/scheduler";
 import * as admin from "firebase-admin";
 import * as logger from "firebase-functions/logger";
 import {
@@ -147,6 +147,85 @@ export const updateSeasonScheduled = onSchedule(
         startDate: startDate.toDate(),
         endDate: endDate.toDate(),
       });
+
+      // --- ここからグルーピング処理 ---
+      // 1. 全ユーザーを取得
+      const usersSnapshot = await db.collection("users").get();
+      const allUsers = usersSnapshot.docs.map((doc: admin.firestore.QueryDocumentSnapshot) => ({
+        id: doc.id,
+        ref: doc.ref,
+      }));
+      const totalUsers = allUsers.length;
+
+      if (totalUsers > 0) {
+        // 2. グループ数を計算 (ceil(総数 / 10))
+        let numGroups = Math.ceil(totalUsers / 10);
+        if (numGroups < 1) numGroups = 1;
+
+        // 3. ユーザーをランダムにシャッフル (Fisher-Yates 簡易版)
+        for (let i = totalUsers - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [allUsers[i], allUsers[j]] = [allUsers[j], allUsers[i]];
+        }
+
+        // 4. グループ割り当てとBatch更新
+        // FirestoreのBatchは最大500件までなので、分割して処理
+        const BATCH_SIZE = 500;
+        const chunks = [];
+        for (let i = 0; i < totalUsers; i += BATCH_SIZE) {
+          chunks.push(allUsers.slice(i, i + BATCH_SIZE));
+        }
+
+        // グループごとの人数カウント（初期化）
+        const groupMemberCounts = new Array(numGroups).fill(0);
+
+        for (const chunk of chunks) {
+          const batch = db.batch();
+          chunk.forEach((user: { id: string; ref: admin.firestore.DocumentReference }) => {
+            // 全てのグループに対して順番に1人ずつ割り当てる
+            // allUsersは既にシャッフルされているので、単純にインデックス順でOK
+            // ただし、chunk処理内ではなく全体インデックスを知る必要があるので、
+            // userオブジェクトに割り当て済みgroupIdを持たせるか、
+            // ここで再計算する。allUsersのインデックスを使えば良い。
+            const globalIndex = allUsers.indexOf(user);
+            const groupId = (globalIndex % numGroups) + 1; // 1, 2, 3...
+
+            batch.update(user.ref, {
+              groupId: groupId,
+              assignedSeasonId: newSeasonId // どのシーズンのグループか追跡用（任意）
+            });
+
+            // カウントアップ (indexは groupId-1)
+            groupMemberCounts[groupId - 1]++;
+          });
+          await batch.commit();
+          logger.info(`Batch更新完了: ${chunk.length}ユーザーのグループを割り当てました`);
+        }
+
+        // 5. 新シーズンのグループドキュメントを作成
+        // seasons/{seasonId}/groups/{groupId}
+        const groupsBatch = db.batch();
+        const groupsRef = seasonsRef.doc(newSeasonId).collection("groups");
+
+        for (let i = 0; i < numGroups; i++) {
+          const groupId = i + 1;
+          const memberCount = groupMemberCounts[i];
+          const groupDocRef = groupsRef.doc(String(groupId));
+
+          groupsBatch.set(groupDocRef, {
+            groupId: groupId,
+            seasonId: newSeasonId,
+            memberCount: memberCount,
+            createdAt: admin.firestore.Timestamp.now(),
+          });
+        }
+        await groupsBatch.commit();
+        logger.info(`${numGroups}個のグループドキュメントを作成しました`);
+
+      } else {
+        logger.info("ユーザーが存在しないため、グルーピングをスキップしました");
+      }
+      // --- ここまでグルーピング処理 ---
     } catch (error) {
       logger.error("シーズン更新処理でエラーが発生しました", { error });
       throw error;
