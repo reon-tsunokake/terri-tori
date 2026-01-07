@@ -4,23 +4,77 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { FaTrophy, FaMedal, FaStar } from 'react-icons/fa';
 import { GiTwoCoins } from 'react-icons/gi';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { useSeasonPost } from '@/contexts/SeasonPostContext';
 import { RankingService } from '@/services/rankingService';
 import { UserRankingData } from '@/types/ranking';
 
 export default function ExperienceRanking() {
   const router = useRouter();
+  const { currentSeasonId } = useSeasonPost();
   const [rankingData, setRankingData] = useState<UserRankingData[]>([]);
   const [loading, setLoading] = useState(true);
   const [displayCount, setDisplayCount] = useState(10);
-  const [selectedGroup, setSelectedGroup] = useState<number>(1); // グループ選択ステート
+  const [availableGroups, setAvailableGroups] = useState<number[]>([]);
+  const [selectedGroup, setSelectedGroup] = useState<number | 'all'>('all'); // グループ選択ステート
+
+  // グループ一覧を取得
+  useEffect(() => {
+    const fetchGroups = async () => {
+      if (!currentSeasonId) return;
+      
+      try {
+        const seasonDocRef = doc(db, 'seasons', currentSeasonId);
+        const seasonDocSnap = await getDoc(seasonDocRef);
+        
+        if (seasonDocSnap.exists()) {
+          const seasonData = seasonDocSnap.data();
+          const groups = seasonData?.groups || [];
+          
+          // 配列の要素を数値に変換してソート
+          const groupIds = groups
+            .map((id: any) => typeof id === 'number' ? id : parseInt(id))
+            .filter((id: number) => !isNaN(id))
+            .sort((a: number, b: number) => a - b);
+          
+          setAvailableGroups(groupIds);
+          
+          // 選択中のグループが'all'でなく、かつ存在しない場合のみ最初のグループを選択
+          if (selectedGroup !== 'all' && groupIds.length > 0 && !groupIds.includes(selectedGroup)) {
+            setSelectedGroup(groupIds[0]);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching groups:', error);
+      }
+    };
+
+    fetchGroups();
+  }, [currentSeasonId]);
 
   // 初期データ取得（グループ別）
   useEffect(() => {
     const fetchRanking = async () => {
       try {
         setLoading(true);
-        const data = await RankingService.getUserRankingByExperience(100, selectedGroup);
-        setRankingData(data);
+        if (selectedGroup === 'all') {
+          // 全グループのデータを取得してマージ
+          const allData = await Promise.all(
+            availableGroups.map(groupId => 
+              RankingService.getUserRankingByExperience(100, groupId)
+            )
+          );
+          // 全データを結合して重複を除去、experienceでソート
+          const mergedData = allData.flat();
+          const uniqueData = Array.from(
+            new Map(mergedData.map(user => [user.uid, user])).values()
+          ).sort((a, b) => b.experience - a.experience);
+          setRankingData(uniqueData);
+        } else {
+          const data = await RankingService.getUserRankingByExperience(100, selectedGroup);
+          setRankingData(data);
+        }
       } catch (error) {
         console.error('Error fetching experience ranking:', error);
       } finally {
@@ -28,8 +82,10 @@ export default function ExperienceRanking() {
       }
     };
 
-    fetchRanking();
-  }, [selectedGroup]);
+    if (selectedGroup === 'all' ? availableGroups.length > 0 : true) {
+      fetchRanking();
+    }
+  }, [selectedGroup, availableGroups]);
 
   // 無限スクロール
   useEffect(() => {
@@ -163,24 +219,35 @@ export default function ExperienceRanking() {
 
   return (
     <div className="w-full">
-      {/* グループ選択バー */}
+      {/* グループ選択プルダウン */}
       <div className="bg-white border-b border-gray-200 px-4 py-3 shadow-sm mb-4">
-        <div className="flex gap-2">
-          {[1, 2, 3].map((groupId) => (
-            <button
-              key={groupId}
-              onClick={() => setSelectedGroup(groupId)}
-              className={`
-                flex-1 px-4 py-2.5 rounded-lg font-semibold text-sm transition-all duration-200
-                ${selectedGroup === groupId
-                  ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-500/50 scale-105'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:scale-102'
-                }
-              `}
-            >
-              グループ {groupId}
-            </button>
-          ))}
+        <div className="max-w-xs mx-auto">
+          <label htmlFor="group-select" className="block text-sm font-medium text-gray-700 mb-2">
+            グループ選択
+          </label>
+          <select
+            id="group-select"
+            value={selectedGroup}
+            onChange={(e) => {
+              const value = e.target.value;
+              setSelectedGroup(value === 'all' ? 'all' : Number(value));
+            }}
+            className="w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 px-3 py-2.5"
+            disabled={availableGroups.length === 0}
+          >
+            {availableGroups.length === 0 ? (
+              <option value="">グループを読み込み中...</option>
+            ) : (
+              <>
+                <option value="all">すべてのグループ</option>
+                {availableGroups.map((groupId) => (
+                  <option key={groupId} value={groupId}>
+                    グループ {groupId}
+                  </option>
+                ))}
+              </>
+            )}
+          </select>
         </div>
       </div>
 

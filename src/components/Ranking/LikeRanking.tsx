@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { FaMapMarkerAlt } from 'react-icons/fa';
-import { collection, getDocs, query, orderBy, doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSeasonPost } from '@/contexts/SeasonPostContext';
@@ -48,8 +48,43 @@ export default function LikeRanking() {
 
   const [selectedMunicipality, setSelectedMunicipality] = useState<string>('all');
   const [selectedSeason, setSelectedSeason] = useState<string>('all');
-  const [selectedGroup, setSelectedGroup] = useState<number>(1); // グループ選択ステート
+  const [availableGroups, setAvailableGroups] = useState<number[]>([]);
+  const [selectedGroup, setSelectedGroup] = useState<number | 'all'>('all'); // グループ選択ステート
   const [regionNameCache, setRegionNameCache] = useState<Map<string, string>>(new Map());
+
+  // グループ一覧を取得
+  useEffect(() => {
+    const fetchGroups = async () => {
+      if (!currentSeasonId) return;
+      
+      try {
+        const seasonDocRef = doc(db, 'seasons', currentSeasonId);
+        const seasonDocSnap = await getDoc(seasonDocRef);
+        
+        if (seasonDocSnap.exists()) {
+          const seasonData = seasonDocSnap.data();
+          const groups = seasonData?.groups || [];
+          
+          // 配列の要素を数値に変換してソート
+          const groupIds = groups
+            .map((id: any) => typeof id === 'number' ? id : parseInt(id))
+            .filter((id: number) => !isNaN(id))
+            .sort((a: number, b: number) => a - b);
+          
+          setAvailableGroups(groupIds);
+          
+          // 選択中のグループが'all'でなく、かつ存在しない場合のみ最初のグループを選択
+          if (selectedGroup !== 'all' && groupIds.length > 0 && !groupIds.includes(selectedGroup)) {
+            setSelectedGroup(groupIds[0]);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching groups:', error);
+      }
+    };
+
+    fetchGroups();
+  }, [currentSeasonId]);
 
   // 初期フィルタ（マップの詳細から渡されたクエリを反映）
   useEffect(() => {
@@ -109,11 +144,23 @@ export default function LikeRanking() {
       try {
         setLoading(true);
         
-        // RankingService経由でグループ別のregionTopデータを取得
-        const regionTopDocs = await RankingService.getRegionTopDocuments(currentSeasonId, selectedGroup);
+        let allRegionTopDocs: any[] = [];
+        
+        if (selectedGroup === 'all') {
+          // 全グループのデータを取得してマージ
+          const allData = await Promise.all(
+            availableGroups.map(groupId => 
+              RankingService.getRegionTopDocuments(currentSeasonId, groupId)
+            )
+          );
+          allRegionTopDocs = allData.flat();
+        } else {
+          // RankingService経由でグループ別のregionTopデータを取得
+          allRegionTopDocs = await RankingService.getRegionTopDocuments(currentSeasonId, selectedGroup);
+        }
         
         // LightPostData形式に変換
-        const posts: LightPostData[] = regionTopDocs.map((regionTop) => ({
+        const posts: LightPostData[] = allRegionTopDocs.map((regionTop) => ({
           id: regionTop.postId,
           likesCount: regionTop.likesCount || 0,
           regionId: regionTop.regionId,
@@ -141,8 +188,10 @@ export default function LikeRanking() {
       }
     };
 
-    fetchRegionTopData();
-  }, [selectedGroup, currentSeasonId]);
+    if (selectedGroup === 'all' ? availableGroups.length > 0 : true) {
+      fetchRegionTopData();
+    }
+  }, [selectedGroup, currentSeasonId, availableGroups]);
 
   // ランキングデータの生成
   const rankingData = useMemo(() => {
@@ -350,32 +399,39 @@ export default function LikeRanking() {
 
   return (
     <div className="w-full">
-      {/* グループ選択タブ */}
-      <div className="bg-white border-b border-gray-200 px-4 py-2 shadow-sm">
-        <div className="flex space-x-2 justify-center">
-          {[1, 2, 3].map((groupId) => (
-            <button
-              key={groupId}
-              onClick={() => setSelectedGroup(groupId)}
-              className={`flex-1 py-2 px-4 rounded-lg font-semibold transition-all ${
-                selectedGroup === groupId
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              グループ {groupId}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* フィルターバー */}
+      {/* フィルターバー（グループ、地域、期間を横並び） */}
       <div className="bg-white border-b border-gray-200 px-4 py-3 shadow-sm mb-4">
-        <div className="flex space-x-2">
+        <div className="flex gap-2">
+          {/* グループ選択 */}
+          <select
+            id="group-select"
+            value={selectedGroup}
+            onChange={(e) => {
+              const value = e.target.value;
+              setSelectedGroup(value === 'all' ? 'all' : Number(value));
+            }}
+            className="flex-1 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 px-3 py-2.5"
+            disabled={availableGroups.length === 0}
+          >
+            {availableGroups.length === 0 ? (
+              <option value="">グループを読み込み中...</option>
+            ) : (
+              <>
+                <option value="all">すべてのグループ</option>
+                {availableGroups.map((groupId) => (
+                  <option key={groupId} value={groupId}>
+                    グループ {groupId}
+                  </option>
+                ))}
+              </>
+            )}
+          </select>
+
+          {/* 地域選択 */}
           <select
             value={selectedMunicipality}
             onChange={(e) => setSelectedMunicipality(e.target.value)}
-            className="flex-1 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5"
+            className="flex-1 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 px-3 py-2.5"
           >
             <option value="all">全ての地域</option>
             {municipalityOptions.map((m) => (
@@ -383,10 +439,11 @@ export default function LikeRanking() {
             ))}
           </select>
 
+          {/* 期間選択 */}
           <select
             value={selectedSeason}
             onChange={(e) => setSelectedSeason(e.target.value)}
-            className="flex-1 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5"
+            className="flex-1 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 px-3 py-2.5"
           >
             <option value="all">全ての期間</option>
             {seasonOptions.map((s) => (
