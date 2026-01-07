@@ -12,12 +12,14 @@ export default function ExperienceRanking() {
   const [rankingData, setRankingData] = useState<UserRankingData[]>([]);
   const [loading, setLoading] = useState(true);
   const [displayCount, setDisplayCount] = useState(10);
+  const [selectedGroup, setSelectedGroup] = useState<number>(1); // グループ選択ステート
 
-  // 初期データ取得
+  // 初期データ取得（グループ別）
   useEffect(() => {
     const fetchRanking = async () => {
       try {
-        const data = await RankingService.getUserRankingByExperience(100);
+        setLoading(true);
+        const data = await RankingService.getUserRankingByExperience(100, selectedGroup);
         setRankingData(data);
       } catch (error) {
         console.error('Error fetching experience ranking:', error);
@@ -27,7 +29,7 @@ export default function ExperienceRanking() {
     };
 
     fetchRanking();
-  }, []);
+  }, [selectedGroup]);
 
   // 無限スクロール
   useEffect(() => {
@@ -160,22 +162,45 @@ export default function ExperienceRanking() {
   }
 
   return (
-    <div className="px-2 space-y-3 pb-24">
-      {rankingData.slice(0, displayCount).map((user, index) => {
-        const rank = index + 1;
-        const isTopThree = index < 3;
+    <div className="w-full">
+      {/* グループ選択バー */}
+      <div className="bg-white border-b border-gray-200 px-4 py-3 shadow-sm mb-4">
+        <div className="flex gap-2">
+          {[1, 2, 3].map((groupId) => (
+            <button
+              key={groupId}
+              onClick={() => setSelectedGroup(groupId)}
+              className={`
+                flex-1 px-4 py-2.5 rounded-lg font-semibold text-sm transition-all duration-200
+                ${selectedGroup === groupId
+                  ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg shadow-blue-500/50 scale-105'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:scale-102'
+                }
+              `}
+            >
+              グループ {groupId}
+            </button>
+          ))}
+        </div>
+      </div>
 
-        return (
-          <div
-            key={user.uid}
-            onClick={() => handleUserClick(user.uid)}
-            className={`
-              flex items-center rounded-2xl p-4 transition-all duration-300 cursor-pointer
-              hover:scale-[1.02] hover:shadow-2xl active:scale-[0.98]
-              ${getCardStyle(index)}
-              ${isTopThree ? 'transform hover:-translate-y-1' : ''}
-            `}
-          >
+      {/* ランキングリスト */}
+      <div className="px-2 space-y-3 pb-24">
+        {rankingData.slice(0, displayCount).map((user, index) => {
+          const rank = index + 1;
+          const isTopThree = index < 3;
+
+          return (
+            <div
+              key={user.uid}
+              onClick={() => handleUserClick(user.uid)}
+              className={`
+                flex items-center rounded-2xl p-4 transition-all duration-300 cursor-pointer
+                hover:scale-[1.02] hover:shadow-2xl active:scale-[0.98]
+                ${getCardStyle(index)}
+                ${isTopThree ? 'transform hover:-translate-y-1' : ''}
+              `}
+            >
             {/* 順位 */}
             <div className="flex-shrink-0 w-10 flex justify-center mr-4">
               <span className={`
@@ -253,6 +278,7 @@ export default function ExperienceRanking() {
           スクロールして続きを表示...
         </div>
       )}
+      </div>
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { Timestamp, GeoPoint, FieldValue } from 'firebase/firestore';
 // Firestoreのユーザードキュメント構造
 export interface UserDocument {
   uid: string;
+  groupId: number; // バトロワ形式のグループID (1, 2, 3)
   displayName: string;
   email: string | null;
   photoURL: string | null;
@@ -38,6 +39,7 @@ export interface UpdateUserProfileData {
 // 投稿ドキュメント構造
 export interface PostDocument {
   userId: string;
+  groupId: number; // 投稿者のグループID
   regionId: string;
   seasonId: string;
   imageUrl: string;

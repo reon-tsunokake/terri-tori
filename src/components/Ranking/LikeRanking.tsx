@@ -6,9 +6,11 @@ import { FaMapMarkerAlt } from 'react-icons/fa';
 import { collection, getDocs, query, orderBy, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSeasonPost } from '@/contexts/SeasonPostContext';
 import { PostDocument, UserDocument } from '@/types/firestore';
 import { getMunicipalityName } from '@/utils/location';
 import { checkIfUserLiked } from '@/services/likeService';
+import { RankingService } from '@/services/rankingService';
 import LikeButton from '@/components/LikeButton/LikeButton';
 
 // 軽量データ（ソート・フィルタ用）
@@ -36,6 +38,7 @@ type RankingPostData = LightPostData & {
 export default function LikeRanking() {
   const router = useRouter();
   const { user } = useAuth();
+  const { currentSeasonId } = useSeasonPost();
   
   const [lightPosts, setLightPosts] = useState<LightPostData[]>([]);
   const [detailCache, setDetailCache] = useState<Map<string, Partial<RankingPostData>>>(new Map());
@@ -45,6 +48,7 @@ export default function LikeRanking() {
 
   const [selectedMunicipality, setSelectedMunicipality] = useState<string>('all');
   const [selectedSeason, setSelectedSeason] = useState<string>('all');
+  const [selectedGroup, setSelectedGroup] = useState<number>(1); // グループ選択ステート
   const [regionNameCache, setRegionNameCache] = useState<Map<string, string>>(new Map());
 
   // 初期フィルタ（マップの詳細から渡されたクエリを反映）
@@ -93,9 +97,45 @@ export default function LikeRanking() {
   }, []);
 
   // フィルター変更時にdisplayCountをリセット
+  useEffect(() => {, selectedGroup]);
+
+  // 地域トップデータ取得（グループ別）
   useEffect(() => {
-    setDisplayCount(10);
-  }, [selectedMunicipality, selectedSeason]);
+    const fe（削除 - 上記の useEffect で統合）
+  // 以下の useEffect は削除されました   id: docSnapshot.id,
+            likesCount: data.likesCount || 0,
+            regionId: data.regionId,
+            seasonId: data.seasonId,
+            userId: data.userId,
+            imageUrl: data.imageUrl,
+          };
+        });
+
+        setLightPosts(posts);
+        
+        // 地域名キャッシュを構築
+        const regionIds = [...new Set(posts.map(p => p.regionId).filter(Boolean))] as string[];
+        const newRegionCache = new Map<string, string>();
+        await Promise.all(
+          regionIds.map(async (regionId) => {
+            const name = await getMunicipalityName(regionId);
+            if (name) newRegionCache.set(regionId, name);
+          })
+        );
+        setRegionNameCache(newRegionCache);
+      } catch (error) {
+        console.error("Error fetching all posts:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (currentSeasonId) {
+      fetchRegionTopData();
+    }
+  }, [selectedGroup, selectedSeason, currentSeasonId]);
+
+  // 軽量データ取得（削除 - 上記の useEffect で統合）edMunicipality, selectedSeason]);
 
   // 軽量データ取得
   useEffect(() => {
@@ -356,6 +396,27 @@ export default function LikeRanking() {
 
   return (
     <div className="w-full">
+      {/* グループ選択バー */}
+      <div className="bg-white border-b border-gray-200 px-4 py-3 shadow-sm">
+        <div className="flex gap-2 mb-3">
+          {[1, 2, 3].map((groupId) => (
+            <button
+              key={groupId}
+              onClick={() => setSelectedGroup(groupId)}
+              className={`
+                flex-1 px-4 py-2.5 rounded-lg font-semibold text-sm transition-all duration-200
+                ${selectedGroup === groupId
+                  ? 'bg-gradient-to-r from-rose-500 to-pink-500 text-white shadow-lg shadow-rose-500/50 scale-105'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:scale-102'
+                }
+              `}
+            >
+              グループ {groupId}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* フィルターバー */}
       <div className="bg-white border-b border-gray-200 px-4 py-3 shadow-sm mb-4">
         <div className="flex space-x-2">

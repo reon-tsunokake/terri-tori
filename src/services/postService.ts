@@ -33,9 +33,23 @@ const POSTS_COLLECTION = 'posts';
  */
 export async function createPost(data: CreatePostData): Promise<string> {
   try {
+    // ユーザーから groupId を取得
+    const userDoc = await getDoc(doc(db, 'users', data.userId));
+    
+    if (!userDoc.exists()) {
+      throw new Error('User not found');
+    }
+    
+    const groupId = userDoc.data()?.groupId;
+    
+    if (!groupId) {
+      throw new Error('User groupId not found');
+    }
+    
     // 仮の投稿データを作成（imageUrlは後で更新）
     const postData: Omit<PostDocument, 'createdAt'> & { createdAt: any } = {
       userId: data.userId,
+      groupId, // groupId を追加
       regionId: data.regionId,
       seasonId: data.seasonId,
       imageUrl: '', // 一時的に空文字

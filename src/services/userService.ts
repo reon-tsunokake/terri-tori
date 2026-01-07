@@ -15,6 +15,45 @@ import {
  */
 export class UserService {
   /**
+   * 最も人数が少ないグループIDを取得
+   * 同数の場合はランダムに選択
+   */
+  private static async getLeastPopulatedGroup(): Promise<number> {
+    try {
+      const usersSnapshot = await getDocs(collection(db, 'users'));
+      
+      // グループごとの人数をカウント
+      const groupCounts: Record<1 | 2 | 3, number> = { 1: 0, 2: 0, 3: 0 };
+      usersSnapshot.docs.forEach(doc => {
+        const groupId = doc.data().groupId as number | undefined;
+        if (groupId && (groupId === 1 || groupId === 2 || groupId === 3)) {
+          groupCounts[groupId]++;
+        }
+      });
+      
+      console.log('Group counts:', groupCounts);
+      
+      // 最小人数を見つける
+      const minCount = Math.min(...Object.values(groupCounts));
+      
+      // 最小人数のグループを全て取得
+      const candidates = ([1, 2, 3] as const).filter(
+        groupId => groupCounts[groupId] === minCount
+      );
+      
+      // 複数ある場合はランダムに選択
+      const selectedGroup = candidates[Math.floor(Math.random() * candidates.length)];
+      
+      console.log(`Selected group ${selectedGroup} (count: ${minCount})`);
+      return selectedGroup;
+    } catch (error) {
+      console.error('Error getting least populated group:', error);
+      // エラー時はランダムに割り当て
+      return Math.floor(Math.random() * 3) + 1;
+    }
+  }
+
+  /**
    * ユーザードキュメントをFirestoreに作成
    */
   static async createUser(user: User, additionalData?: CreateUserData): Promise<UserDocument> {
@@ -29,8 +68,12 @@ export class UserService {
         const { displayName, email, photoURL } = user;
         const now = serverTimestamp();
         
+        // 最も人数が少ないグループを取得
+        const groupId = await this.getLeastPopulatedGroup();
+        
         const userData: UserDocument = {
           uid: user.uid,
+          groupId, // グループID を追加
           displayName: additionalData?.displayName || displayName || email?.split('@')[0] || '匿名ユーザー',
           email,
           photoURL: additionalData?.photoURL || photoURL || null,

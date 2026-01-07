@@ -50,6 +50,7 @@ export const updateSeasonScheduled = onSchedule(
           id: string;
           regionId: string;
           userId: string;
+          groupId: number;
           likesCount: number;
         };
         const posts: PostData[] = postsSnapshot.docs.map(doc => {
@@ -58,38 +59,53 @@ export const updateSeasonScheduled = onSchedule(
             id: doc.id,
             regionId: data.regionId ?? "",
             userId: data.userId ?? "",
+            groupId: data.groupId ?? 1,
             likesCount: typeof data.likesCount === "number" ? data.likesCount : 0,
           };
         });
 
-        // 2. エリア(regionId)ごとにランキングを集計
+        // 2. エリア(regionId)ごとにランキングを集計（グループ別）
         // ランキング経験値テーブル例（順位: 経験値）
         const rankExpTable = [100, 80, 60, 40, 20]; // 1位〜5位
 
-        // 3. ユーザごとにエリアごとの投稿順位・いいね数を集計
+        // 3. ユーザごとにエリアごとの投稿順位・いいね数を集計（グループ別）
         // { userId: { exp: number } }
         const userExpMap: { [userId: string]: number } = {};
 
-        // エリアごとに分ける
-        const areaPostMap: { [regionId: string]: any[] } = {};
+        // グループごとにエリアを分ける
+        const groupAreaPostMap: {
+          [groupId: number]: { [regionId: string]: PostData[] }
+        } = { 1: {}, 2: {}, 3: {} };
+
         posts.forEach(post => {
-          if (!areaPostMap[post.regionId]) areaPostMap[post.regionId] = [];
-          areaPostMap[post.regionId].push(post);
+          const groupId = post.groupId;
+          if (!groupAreaPostMap[groupId]) groupAreaPostMap[groupId] = {};
+          if (!groupAreaPostMap[groupId][post.regionId]) {
+            groupAreaPostMap[groupId][post.regionId] = [];
+          }
+          groupAreaPostMap[groupId][post.regionId].push(post);
         });
 
-        // 各エリアごとにランキング集計
-        Object.entries(areaPostMap).forEach(([regionId, areaPosts]) => {
-          // いいね数降順で並び替え（例：ランキング基準）
-          areaPosts.sort((a, b) => (b.likesCount || 0) - (a.likesCount || 0));
-          areaPosts.forEach((post, idx) => {
-            const userId = post.userId;
-            const rankExp = rankExpTable[idx] || 0; // 6位以降は0
-            const likeExp = (post.likesCount || 0) * 50;
-            const totalExp = rankExp + likeExp;
-            if (!userExpMap[userId]) userExpMap[userId] = 0;
-            userExpMap[userId] += totalExp;
+        // 各グループ・各エリアごとにランキング集計
+        for (const [groupIdStr, areaPostMap] of Object.entries(groupAreaPostMap)) {
+          const groupId = Number(groupIdStr);
+          logger.info(`グループ ${groupId} の経験値計算を開始`);
+
+          Object.entries(areaPostMap).forEach(([regionId, areaPosts]) => {
+            // いいね数降順で並び替え（例：ランキング基準）
+            areaPosts.sort((a, b) => (b.likesCount || 0) - (a.likesCount || 0));
+            areaPosts.forEach((post, idx) => {
+              const userId = post.userId;
+              const rankExp = rankExpTable[idx] || 0; // 6位以降は0
+              const likeExp = (post.likesCount || 0) * 50;
+              const totalExp = rankExp + likeExp;
+              if (!userExpMap[userId]) userExpMap[userId] = 0;
+              userExpMap[userId] += totalExp;
+            });
           });
-        });
+
+          logger.info(`グループ ${groupId} の経験値計算完了`);
+        }
 
         // 4. Firestoreユーザドキュメントに経験値加算
         const userRef = db.collection("users");
@@ -136,6 +152,7 @@ export const updateSeasonScheduled = onSchedule(
       const newSeasonData: SeasonDocument = {
         seasonId: newSeasonId,
         isCurrent: true,
+        groups: [1, 2, 3], // 3つのグループが常にアクティブ
         startDate: startDate,
         endDate: endDate,
         createdAt: admin.firestore.Timestamp.now(),

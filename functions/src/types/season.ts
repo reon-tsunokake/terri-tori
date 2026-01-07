@@ -6,6 +6,7 @@ import * as admin from "firebase-admin";
 export interface SeasonDocument {
   seasonId: string; // YYYY-MM形式 (例: "2025-11")
   isCurrent: boolean; // 現在のシーズンかどうか
+  groups: number[]; // このシーズンのアクティブなグループID (例: [1, 2, 3])
   startDate: admin.firestore.Timestamp; // シーズン開始日
   endDate: admin.firestore.Timestamp; // シーズン終了日
   createdAt: admin.firestore.Timestamp; // ドキュメント作成日時
