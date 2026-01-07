@@ -7,7 +7,7 @@
  * See a full list of supported triggers at https://firebase.google.com/docs/functions
  */
 
-import {setGlobalOptions} from "firebase-functions";
+import { setGlobalOptions } from "firebase-functions";
 import * as admin from "firebase-admin";
 // import {onRequest} from "firebase-functions/https";
 // import * as logger from "firebase-functions/logger";
@@ -41,3 +41,6 @@ export { updateSeasonScheduled } from "./scheduledFunctions/updateSeason";
 
 // 日次ランキング更新用のスケジュール関数
 export { updateDailyRanking } from "./scheduledFunctions/updateDailyRanking";
+
+// 新規ユーザー作成時のグループ割り当てトリガー
+export { onUserCreated } from "./triggers/userTriggers";
