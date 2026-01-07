@@ -152,7 +152,7 @@ export const updateSeasonScheduled = onSchedule(
       const newSeasonData: SeasonDocument = {
         seasonId: newSeasonId,
         isCurrent: true,
-        groups: [1, 2, 3], // 3つのグループが常にアクティブ
+        groups: [], // グループ割り振り後に更新される
         startDate: startDate,
         endDate: endDate,
         createdAt: admin.firestore.Timestamp.now(),
@@ -174,10 +174,16 @@ export const updateSeasonScheduled = onSchedule(
       }));
       const totalUsers = allUsers.length;
 
+      // アクティブなグループIDリスト
+      let activeGroupIds: number[] = [];
+
       if (totalUsers > 0) {
         // 2. グループ数を計算 (ceil(総数 / 10))
         let numGroups = Math.ceil(totalUsers / 10);
         if (numGroups < 1) numGroups = 1;
+
+        // アクティブなグループIDリストを生成 [1, 2, 3, ..., numGroups]
+        activeGroupIds = Array.from({ length: numGroups }, (_, i) => i + 1);
 
         // 3. ユーザーをランダムにシャッフル (Fisher-Yates 簡易版)
         for (let i = totalUsers - 1; i > 0; i--) {
@@ -239,8 +245,18 @@ export const updateSeasonScheduled = onSchedule(
         await groupsBatch.commit();
         logger.info(`${numGroups}個のグループドキュメントを作成しました`);
 
+        // 6. シーズンドキュメントのgroupsフィールドを更新
+        await seasonsRef.doc(newSeasonId).update({
+          groups: activeGroupIds
+        });
+        logger.info(`シーズンドキュメントのgroupsフィールドを更新しました: [${activeGroupIds.join(', ')}]`);
+
       } else {
         logger.info("ユーザーが存在しないため、グルーピングをスキップしました");
+        // ユーザーがいない場合でも空の配列を設定
+        await seasonsRef.doc(newSeasonId).update({
+          groups: []
+        });
       }
       // --- ここまでグルーピング処理 ---
     } catch (error) {

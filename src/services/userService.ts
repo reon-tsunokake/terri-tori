@@ -20,13 +20,39 @@ export class UserService {
    */
   private static async getLeastPopulatedGroup(): Promise<number> {
     try {
+      // 現在のシーズンからアクティブなグループIDリストを取得
+      const seasonsSnapshot = await getDocs(collection(db, 'seasons'));
+      const currentSeason = seasonsSnapshot.docs.find(
+        doc => doc.data().isCurrent === true
+      );
+      
+      if (!currentSeason) {
+        console.warn('現在のシーズンが見つかりません。デフォルトでグループ1を返します');
+        return 1;
+      }
+      
+      const seasonData = currentSeason.data();
+      const activeGroupIds = (seasonData.groups || []) as number[];
+      
+      if (activeGroupIds.length === 0) {
+        console.warn('アクティブなグループがありません。デフォルトでグループ1を返します');
+        return 1;
+      }
+      
+      console.log('Active groups from season:', activeGroupIds);
+      
+      // ユーザー一覧を取得
       const usersSnapshot = await getDocs(collection(db, 'users'));
       
-      // グループごとの人数をカウント
-      const groupCounts: Record<1 | 2 | 3, number> = { 1: 0, 2: 0, 3: 0 };
+      // グループごとの人数をカウント（動的に初期化）
+      const groupCounts: Record<number, number> = {};
+      activeGroupIds.forEach(groupId => {
+        groupCounts[groupId] = 0;
+      });
+      
       usersSnapshot.docs.forEach(doc => {
         const groupId = doc.data().groupId as number | undefined;
-        if (groupId && (groupId === 1 || groupId === 2 || groupId === 3)) {
+        if (groupId && groupCounts[groupId] !== undefined) {
           groupCounts[groupId]++;
         }
       });
@@ -37,7 +63,7 @@ export class UserService {
       const minCount = Math.min(...Object.values(groupCounts));
       
       // 最小人数のグループを全て取得
-      const candidates = ([1, 2, 3] as const).filter(
+      const candidates = activeGroupIds.filter(
         groupId => groupCounts[groupId] === minCount
       );
       
@@ -48,8 +74,8 @@ export class UserService {
       return selectedGroup;
     } catch (error) {
       console.error('Error getting least populated group:', error);
-      // エラー時はランダムに割り当て
-      return Math.floor(Math.random() * 3) + 1;
+      // エラー時はデフォルトでグループ1を返す
+      return 1;
     }
   }
 
