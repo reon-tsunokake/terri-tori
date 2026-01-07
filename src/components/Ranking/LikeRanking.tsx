@@ -10,7 +10,7 @@ import { useSeasonPost } from '@/contexts/SeasonPostContext';
 import { PostDocument, UserDocument } from '@/types/firestore';
 import { getMunicipalityName } from '@/utils/location';
 import { checkIfUserLiked } from '@/services/likeService';
-import { RankingService } from '@/services/rankingService';
+import { getPosts } from '@/services/postService';
 import LikeButton from '@/components/LikeButton/LikeButton';
 
 // 軽量データ（ソート・フィルタ用）
@@ -21,6 +21,7 @@ type LightPostData = {
   seasonId?: string;
   userId?: string;
   imageUrl?: string;
+  groupId?: number;
 };
 
 // ランキング表示用に型を拡張（詳細データ）
@@ -136,37 +137,27 @@ export default function LikeRanking() {
     setDisplayCount(10);
   }, [selectedMunicipality, selectedSeason, selectedGroup]);
 
-  // 地域トップデータ取得（グループ別）
+  // 全投稿データ取得
   useEffect(() => {
-    const fetchRegionTopData = async () => {
-      if (!currentSeasonId) return;
-      
+    const fetchAllPosts = async () => {
       try {
         setLoading(true);
         
-        let allRegionTopDocs: any[] = [];
-        
-        if (selectedGroup === 'all') {
-          // 全グループのデータを取得してマージ
-          const allData = await Promise.all(
-            availableGroups.map(groupId => 
-              RankingService.getRegionTopDocuments(currentSeasonId, groupId)
-            )
-          );
-          allRegionTopDocs = allData.flat();
-        } else {
-          // RankingService経由でグループ別のregionTopデータを取得
-          allRegionTopDocs = await RankingService.getRegionTopDocuments(currentSeasonId, selectedGroup);
-        }
+        // 全投稿をいいね数順で取得（最大1000件）
+        const allPosts = await getPosts({
+          orderByField: 'likesCount',
+          limitCount: 1000,
+        });
         
         // LightPostData形式に変換
-        const posts: LightPostData[] = allRegionTopDocs.map((regionTop) => ({
-          id: regionTop.postId,
-          likesCount: regionTop.likesCount || 0,
-          regionId: regionTop.regionId,
-          seasonId: currentSeasonId,
-          userId: regionTop.userId,
-          imageUrl: regionTop.imageUrl,
+        const posts: LightPostData[] = allPosts.map((post) => ({
+          id: post.id,
+          likesCount: post.likesCount || 0,
+          regionId: post.regionId,
+          seasonId: post.seasonId,
+          userId: post.userId,
+          imageUrl: post.imageUrl,
+          groupId: post.groupId,
         }));
 
         setLightPosts(posts);
@@ -182,21 +173,25 @@ export default function LikeRanking() {
         );
         setRegionNameCache(newRegionCache);
       } catch (error) {
-        console.error("Error fetching region top data:", error);
+        console.error("Error fetching posts:", error);
       } finally {
         setLoading(false);
       }
     };
 
-    if (selectedGroup === 'all' ? availableGroups.length > 0 : true) {
-      fetchRegionTopData();
-    }
-  }, [selectedGroup, currentSeasonId, availableGroups]);
+    fetchAllPosts();
+  }, []);
 
   // ランキングデータの生成
   const rankingData = useMemo(() => {
     let result = [...lightPosts];
 
+    // グループでフィルタ
+    if (selectedGroup !== 'all') {
+      result = result.filter(p => p.groupId === selectedGroup);
+    }
+
+    // 地域でフィルタ
     if (selectedMunicipality !== 'all') {
       result = result.filter(p => {
         const locationName = p.regionId ? regionNameCache.get(p.regionId) : undefined;
@@ -204,13 +199,15 @@ export default function LikeRanking() {
       });
     }
 
+    // シーズンでフィルタ
     if (selectedSeason !== 'all') {
       result = result.filter(p => p.seasonId === selectedSeason);
     }
 
+    // いいね数でソート
     result.sort((a, b) => (b.likesCount || 0) - (a.likesCount || 0));
     return result.slice(0, 100);
-  }, [lightPosts, selectedMunicipality, selectedSeason, regionNameCache]);
+  }, [lightPosts, selectedGroup, selectedMunicipality, selectedSeason, regionNameCache]);
 
   // 表示分の詳細データを遅延読み込み
   useEffect(() => {

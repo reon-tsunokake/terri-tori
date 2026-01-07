@@ -137,6 +137,7 @@ export async function getPosts(options?: {
   regionId?: string;
   seasonId?: string;
   userId?: string;
+  groupId?: number;
   limitCount?: number;
   orderByField?: 'createdAt' | 'score' | 'likesCount';
 }): Promise<Array<PostDocument & { id: string }>> {
@@ -151,6 +152,9 @@ export async function getPosts(options?: {
     }
     if (options?.userId) {
       constraints.push(where('userId', '==', options.userId));
+    }
+    if (options?.groupId !== undefined) {
+      constraints.push(where('groupId', '==', options.groupId));
     }
 
     // デフォルトは作成日時の降順
