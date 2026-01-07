@@ -152,6 +152,7 @@ export const updateSeasonScheduled = onSchedule(
       const newSeasonData: SeasonDocument = {
         seasonId: newSeasonId,
         isCurrent: true,
+        groups: [1, 2, 3], // 3つのグループが常にアクティブ
         startDate: startDate,
         endDate: endDate,
         createdAt: admin.firestore.Timestamp.now(),
