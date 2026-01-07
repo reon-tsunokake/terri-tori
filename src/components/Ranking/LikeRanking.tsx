@@ -97,19 +97,30 @@ export default function LikeRanking() {
   }, []);
 
   // フィルター変更時にdisplayCountをリセット
-  useEffect(() => {, selectedGroup]);
+  useEffect(() => {
+    setDisplayCount(10);
+  }, [selectedMunicipality, selectedSeason, selectedGroup]);
 
   // 地域トップデータ取得（グループ別）
   useEffect(() => {
-    const fe（削除 - 上記の useEffect で統合）
-  // 以下の useEffect は削除されました   id: docSnapshot.id,
-            likesCount: data.likesCount || 0,
-            regionId: data.regionId,
-            seasonId: data.seasonId,
-            userId: data.userId,
-            imageUrl: data.imageUrl,
-          };
-        });
+    const fetchRegionTopData = async () => {
+      if (!currentSeasonId) return;
+      
+      try {
+        setLoading(true);
+        
+        // RankingService経由でグループ別のregionTopデータを取得
+        const regionTopDocs = await RankingService.getRegionTopDocuments(currentSeasonId, selectedGroup);
+        
+        // LightPostData形式に変換
+        const posts: LightPostData[] = regionTopDocs.map((regionTop) => ({
+          id: regionTop.postId,
+          likesCount: regionTop.likesCount || 0,
+          regionId: regionTop.regionId,
+          seasonId: currentSeasonId,
+          userId: regionTop.userId,
+          imageUrl: regionTop.imageUrl,
+        }));
 
         setLightPosts(posts);
         
@@ -124,71 +135,14 @@ export default function LikeRanking() {
         );
         setRegionNameCache(newRegionCache);
       } catch (error) {
-        console.error("Error fetching all posts:", error);
+        console.error("Error fetching region top data:", error);
       } finally {
         setLoading(false);
       }
     };
 
-    if (currentSeasonId) {
-      fetchRegionTopData();
-    }
-  }, [selectedGroup, selectedSeason, currentSeasonId]);
-
-  // 軽量データ取得（削除 - 上記の useEffect で統合）edMunicipality, selectedSeason]);
-
-  // 軽量データ取得
-  useEffect(() => {
-    const fetchLightPosts = async () => {
-      try {
-        const q = query(collection(db, 'posts'), orderBy('likesCount', 'desc'));
-        const querySnapshot = await getDocs(q);
-
-        const posts: LightPostData[] = querySnapshot.docs.map((docSnapshot) => {
-          const data = docSnapshot.data() as PostDocument;
-          return {
-            id: docSnapshot.id,
-            likesCount: data.likesCount || 0,
-            regionId: data.regionId,
-            seasonId: data.seasonId,
-            userId: data.userId,
-            imageUrl: data.imageUrl,
-          };
-        });
-
-        setLightPosts(posts);
-        
-        try {
-          const regionsSnapshot = await getDocs(collection(db, 'regions'));
-          const newRegionCache = new Map<string, string>();
-          regionsSnapshot.docs.forEach((docSnap) => {
-            const data = docSnap.data() as any;
-            if (data && data.name) {
-              newRegionCache.set(docSnap.id, data.name);
-            }
-          });
-          setRegionNameCache(newRegionCache);
-        } catch (e) {
-          console.error('Failed to fetch regions collection:', e);
-          const regionIds = [...new Set(posts.map(p => p.regionId).filter(Boolean))] as string[];
-          const newRegionCache = new Map<string, string>();
-          await Promise.all(
-            regionIds.map(async (regionId) => {
-              const name = await getMunicipalityName(regionId);
-              if (name) newRegionCache.set(regionId, name);
-            })
-          );
-          setRegionNameCache(newRegionCache);
-        }
-      } catch (error) {
-        console.error("Error fetching ranking data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchLightPosts();
-  }, []);
+    fetchRegionTopData();
+  }, [selectedGroup, currentSeasonId]);
 
   // ランキングデータの生成
   const rankingData = useMemo(() => {
@@ -396,20 +350,18 @@ export default function LikeRanking() {
 
   return (
     <div className="w-full">
-      {/* グループ選択バー */}
-      <div className="bg-white border-b border-gray-200 px-4 py-3 shadow-sm">
-        <div className="flex gap-2 mb-3">
+      {/* グループ選択タブ */}
+      <div className="bg-white border-b border-gray-200 px-4 py-2 shadow-sm">
+        <div className="flex space-x-2 justify-center">
           {[1, 2, 3].map((groupId) => (
             <button
               key={groupId}
               onClick={() => setSelectedGroup(groupId)}
-              className={`
-                flex-1 px-4 py-2.5 rounded-lg font-semibold text-sm transition-all duration-200
-                ${selectedGroup === groupId
-                  ? 'bg-gradient-to-r from-rose-500 to-pink-500 text-white shadow-lg shadow-rose-500/50 scale-105'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 hover:scale-102'
-                }
-              `}
+              className={`flex-1 py-2 px-4 rounded-lg font-semibold transition-all ${
+                selectedGroup === groupId
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
             >
               グループ {groupId}
             </button>

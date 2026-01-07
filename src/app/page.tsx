@@ -78,7 +78,8 @@ export default function Home() {
 
     useEffect(() => {
         if (currentSeasonId) {
-            RankingService.getRegionTopDocuments(currentSeasonId)
+            // グループ1のデータを取得（デフォルト）
+            RankingService.getRegionTopDocuments(currentSeasonId, 1)
                 .then(docs => setRegionTopDocs(docs))
                 .catch(err => console.error('Failed to fetch ranking docs:', err));
         }
