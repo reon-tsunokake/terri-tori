@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import BottomNavigation from '@/components/layout/BottomNavigation';
 import CameraButton from '@/components/layout/CameraButton';
-import LocationDisplay from '@/components/layout/LocationDisplay';
+// import LocationDisplay from '@/components/layout/LocationDisplay';
 import SemiModal from '@/components/layout/SemiModal';
 import { MapService } from '@/services/mapService';
 import { FaTrophy, FaSearch } from 'react-icons/fa';
@@ -19,7 +19,8 @@ import { RankingService } from '@/services/rankingService';
 import { RegionTopDocument } from '@/types/ranking';
 import { useSeasonPost } from '@/contexts/SeasonPostContext';
 import { HiChartBar, HiMagnifyingGlass } from 'react-icons/hi2';
-import GroupMapSelector from '@/components/map/GroupMapSelector';
+// import GroupMapSelector from '@/components/map/GroupMapSelector';
+import InfoRibbon from '@/components/layout/InfoRibbon';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import TerritoryRatioChart from '@/components/map/TerritoryRatioChart';
@@ -189,12 +190,13 @@ export default function Home() {
                     regionTopDocs={regionTopDocs}
                 />
 
-                {/* グループ選択Mapセレクター */}
-                <GroupMapSelector
+                {/* 統合ステータスリボン */}
+                <InfoRibbon
                     selectedGroup={selectedGroup}
                     availableGroups={availableGroups}
                     userGroup={userProfile?.groupId}
-                    onChange={setSelectedGroup}
+                    onGroupChange={setSelectedGroup}
+                    selectedMunicipality={selectedMunicipality}
                 />
 
                 {/* 面積比率チャート (フッター) */}
@@ -206,8 +208,9 @@ export default function Home() {
                     />
                 )}
 
-                {/* 現在地表示 */}
-                <LocationDisplay />
+                {/* 現在地表示 (Legacy: InfoRibbonに統合済み)
+                 <LocationDisplay />
+                 */}
 
                 {!geoJsonData && !geoError && (
                     <div className="absolute top-4 left-1/2 -translate-x-1/2 rounded-2xl bg-white/90 px-4 py-2 text-sm text-gray-700 shadow">
@@ -218,15 +221,6 @@ export default function Home() {
                 {geoError && (
                     <div className="absolute top-4 left-1/2 -translate-x-1/2 rounded-2xl bg-white/90 px-4 py-2 text-sm font-semibold text-red-600 shadow">
                         {geoError}
-                    </div>
-                )}
-
-                {selectedMunicipality && (
-                    <div className="absolute top-4 right-4 rounded-2xl bg-white/95 px-4 py-3 shadow-lg">
-                        <p className="text-sm font-semibold text-gray-800">
-                            {selectedMunicipality.prefecture} {selectedMunicipality.name}
-                        </p>
-                        <p className="text-xs text-gray-500">ID: {selectedMunicipality.id}</p>
                     </div>
                 )}
             </div>

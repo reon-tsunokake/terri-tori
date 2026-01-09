@@ -49,7 +49,7 @@ export default function MapContainer({
       center: [141.1527, 39.7036], // 盛岡あたり
       zoom: 6,
     });
-    map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+
 
     mapRef.current = map;
     return () => {
