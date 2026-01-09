@@ -161,7 +161,7 @@ export default function TerritoryRatioChart({ seasonId, groupId, topOffset = '64
                             })}
                         </>
                     ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-gray-100/50">
+                        <div className="w-full h-full flex items-center justify-center bg-gray-100">
                             <span className="text-xs text-gray-400 font-medium animate-pulse">
                                 データ集計中...
                             </span>

@@ -17,7 +17,7 @@ export default function CameraButton() {
     <>
       <button
         onClick={() => setIsPostFormOpen(true)}
-        className="fixed bottom-24 right-5 z-20 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-r from-rose-500 to-pink-500 text-white shadow-xl transition-all duration-300 hover:scale-105 hover:shadow-2xl active:scale-95 active:shadow-lg touch-manipulation"
+        className="fixed bottom-32 right-5 z-20 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-r from-rose-500 to-pink-500 text-white shadow-xl transition-all duration-300 hover:scale-105 hover:shadow-2xl active:scale-95 active:shadow-lg touch-manipulation"
         aria-label="写真を投稿する"
       >
         <HiCamera className="h-8 w-8" />
