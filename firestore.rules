@@ -72,10 +72,15 @@ service cloud.firestore {
       allow write: if false;
 
       // 新パス: グループ別のregionTop
-      match /groups/{groupId}/regionTop/{regionId} {
-        // 全グループ閲覧可能
+      match /groups/{groupId} {
         allow read: if true;
-        allow write: if false; // Cloud Functionsのみ
+        allow write: if false;
+
+        match /regionTop/{regionId} {
+          // 全グループ閲覧可能
+          allow read: if true;
+          allow write: if false; // Cloud Functionsのみ
+        }
       }
     }
 

@@ -22,6 +22,7 @@ import { HiChartBar, HiMagnifyingGlass } from 'react-icons/hi2';
 import GroupMapSelector from '@/components/map/GroupMapSelector';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import TerritoryRatioChart from '@/components/map/TerritoryRatioChart';
 
 const DynamicMap = dynamic(() => import('@/components/map/MapContainer'), {
     ssr: false,
@@ -195,6 +196,15 @@ export default function Home() {
                     userGroup={userProfile?.groupId}
                     onChange={setSelectedGroup}
                 />
+
+                {/* 面積比率チャート (フッター) */}
+                {currentSeasonId && (
+                    <TerritoryRatioChart
+                        seasonId={currentSeasonId}
+                        groupId={selectedGroup}
+                        topOffset="55px" // Header (約64px) の下に配置
+                    />
+                )}
 
                 {/* 現在地表示 */}
                 <LocationDisplay />

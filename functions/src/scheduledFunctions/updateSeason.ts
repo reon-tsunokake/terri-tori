@@ -6,6 +6,7 @@ import {
   generateSeasonId,
   getNextSeasonYearMonth,
 } from "../types/season";
+import { updateTopRankers } from "./updateDailyRanking";
 
 /**
  * 毎月1日午前0時(JST)に実行されるスケジュール関数
@@ -34,6 +35,11 @@ export const updateSeasonScheduled = onSchedule(
       if (!currentSeasonSnapshot.empty) {
         const currentSeasonDoc = currentSeasonSnapshot.docs[0];
         currentSeasonId = currentSeasonDoc.id;
+
+        // シーズン終了直前に最終ランキング・面積比率を更新
+        logger.info(`シーズン終了直前のランキング更新を実行: ${currentSeasonDoc.id}`);
+        await updateTopRankers(db, currentSeasonDoc.id);
+
         await currentSeasonDoc.ref.update({ isCurrent: false });
         logger.info(`現在のシーズンを終了しました: ${currentSeasonId}`);
       } else {

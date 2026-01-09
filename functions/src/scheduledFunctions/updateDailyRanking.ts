@@ -1,4 +1,4 @@
-import {onSchedule} from "firebase-functions/v2/scheduler";
+import { onSchedule } from "firebase-functions/v2/scheduler";
 import * as admin from "firebase-admin";
 import * as logger from "firebase-functions/logger";
 import {
@@ -48,7 +48,7 @@ export const updateDailyRanking = onSchedule(
 
       logger.info("ランキング更新処理が完了しました");
     } catch (error) {
-      logger.error("ランキング更新処理でエラーが発生しました", {error});
+      logger.error("ランキング更新処理でエラーが発生しました", { error });
       throw error;
     }
   }
@@ -58,11 +58,11 @@ export const updateDailyRanking = onSchedule(
  * 地域ごとのトップランカーを更新
  * グループごとに各regionIdでlikesCountが最も多い投稿を取得し、regionTopに保存
  */
-async function updateTopRankers(
+export async function updateTopRankers(
   db: admin.firestore.Firestore,
   seasonId: string
 ): Promise<void> {
-  logger.info("トップランカー更新を開始します", {seasonId});
+  logger.info("トップランカー更新を開始します", { seasonId });
 
   // シーズンドキュメントからアクティブなグループIDを取得
   const seasonDoc = await db.collection("seasons").doc(seasonId).get();
@@ -97,7 +97,7 @@ async function updateTopRankersForGroup(
   seasonId: string,
   groupId: number
 ): Promise<void> {
-  logger.info(`グループ ${groupId} のトップランカー更新を開始`, {seasonId, groupId});
+  logger.info(`グループ ${groupId} のトップランカー更新を開始`, { seasonId, groupId });
 
   // 該当グループの投稿のみ取得
   const postsSnapshot = await db
@@ -108,7 +108,7 @@ async function updateTopRankersForGroup(
 
   // regionIdを重複なく抽出
   const regionIds = new Set<string>();
-  postsSnapshot.docs.forEach((doc) => {
+  postsSnapshot.docs.forEach((doc: admin.firestore.QueryDocumentSnapshot) => {
     const data = doc.data() as PostDocument;
     if (data.regionId) {
       regionIds.add(data.regionId);
@@ -118,12 +118,16 @@ async function updateTopRankersForGroup(
   logger.info(`グループ ${groupId} の対象地域数: ${regionIds.size}`);
 
   // 新パス: seasons/{seasonId}/groups/{groupId}/regionTop
-  const regionTopRef = db
+  const groupRef = db
     .collection("seasons")
     .doc(seasonId)
     .collection("groups")
-    .doc(String(groupId))
-    .collection("regionTop");
+    .doc(String(groupId));
+
+  const regionTopRef = groupRef.collection("regionTop");
+
+  // 獲得者リスト (regionId -> userId)
+  const winners: { regionId: string; userId: string }[] = [];
 
   // 各地域ごとにトップ投稿を更新
   for (const regionId of regionIds) {
@@ -161,13 +165,119 @@ async function updateTopRankersForGroup(
       // regionTopに保存（上書き）
       await regionTopRef.doc(regionId).set(regionTopData);
 
+      // 勝者を記録
+      winners.push({
+        regionId: regionId,
+        userId: topPostData.userId,
+      });
+
       logger.info(`グループ ${groupId} - 地域 ${regionId} のトップランカーを更新`, {
         postId: topPostDoc.id,
         likesCount: topPostData.likesCount,
       });
     } catch (error) {
-      logger.error(`グループ ${groupId} - 地域 ${regionId} のトップランカー更新でエラー`, {error});
+      logger.error(`グループ ${groupId} - 地域 ${regionId} のトップランカー更新でエラー`, { error });
     }
+  }
+
+  // --- 面積比率の集計 ---
+  try {
+    if (winners.length > 0) {
+      // 1. 地域の面積データを取得
+      const regionIdsList = winners.map(w => w.regionId);
+      // NOTE: regionIdsListが非常に多い場合は分割が必要だが、グループごとの制圧数は限られると想定
+      const uniqueRegionIds = Array.from(new Set(regionIdsList));
+      console.log(`Fetching areas for ${uniqueRegionIds.length} regions`);
+
+      // FirestoreのgetAllは引数制限や挙動が環境（バージョン）に依存する場合があるため、
+      // 確実性の高い Promise.all + get() に変更してデバッグ
+      const regionRefs = uniqueRegionIds.map(rid => db.collection("regions").doc(rid));
+      const regionDocs = await Promise.all(regionRefs.map(ref => ref.get()));
+
+      const regionAreaMap = new Map<string, number>();
+      regionDocs.forEach(doc => {
+        if (doc.exists) {
+          const data = doc.data();
+          // areaフィールドが存在すると仮定
+          regionAreaMap.set(doc.id, Number(data?.area) || 0);
+        }
+      });
+
+      // 2. ユーザデータを取得 (displayName, photoUrl)
+      const userIdsList = Array.from(new Set(winners.map(w => w.userId)));
+      const userRefs = userIdsList.map(uid => db.collection("users").doc(uid));
+      const userDocs = await Promise.all(userRefs.map(ref => ref.get()));
+
+      const userInfoMap = new Map<string, { displayName: string; photoUrl?: string }>();
+      userDocs.forEach(doc => {
+        if (doc.exists) {
+          const data = doc.data();
+          userInfoMap.set(doc.id, {
+            displayName: data?.displayName || "Unknown User",
+            photoUrl: data?.photoUrl,
+          });
+        }
+      });
+
+      // 3. 集計
+      const userAreaMap = new Map<string, number>();
+      let totalGroupArea = 0;
+
+      for (const winner of winners) {
+        const area = regionAreaMap.get(winner.regionId) || 0;
+        if (area > 0) {
+          const userTotal = userAreaMap.get(winner.userId) || 0;
+          userAreaMap.set(winner.userId, userTotal + area);
+          totalGroupArea += area;
+        }
+      }
+
+      // 4. 比率計算と整形
+      const areaDistribution = [];
+      if (totalGroupArea > 0) {
+        for (const [userId, area] of userAreaMap.entries()) {
+          const ratio = (area / totalGroupArea) * 100;
+          const userInfo = userInfoMap.get(userId);
+
+          areaDistribution.push({
+            userId,
+            displayName: userInfo?.displayName || "Unknown User",
+            photoUrl: userInfo?.photoUrl || null,
+            totalArea: area,
+            ratio: Number(ratio.toFixed(1)), // 小数点第1位まで
+          });
+        }
+
+        // 面積順にソート (降順)
+        areaDistribution.sort((a, b) => b.totalArea - a.totalArea);
+      }
+
+      // 5. 保存
+      await groupRef.set({
+        stats: {
+          areaDistribution,
+          totalGroupArea,
+          updatedAt: admin.firestore.Timestamp.now(),
+        }
+      }, { merge: true });
+
+      logger.info(`グループ ${groupId} の面積統計を更新完了`, { totalGroupArea });
+    } else {
+      // 誰も獲得していない場合 (リセット or 初期状態)
+      await groupRef.set({
+        stats: {
+          areaDistribution: [],
+          totalGroupArea: 0,
+          updatedAt: admin.firestore.Timestamp.now(),
+        }
+      }, { merge: true });
+    }
+  } catch (error: any) {
+    logger.error(`グループ ${groupId} の面積統計更新でエラー`, {
+      message: error.message,
+      stack: error.stack,
+      raw: error
+    });
   }
 
   logger.info(`グループ ${groupId} のトップランカー更新完了`);
