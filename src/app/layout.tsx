@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "../contexts/AuthContext";
@@ -20,6 +20,32 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Terri-tori - 現実の写真で、街を染めよう",
   description: "写真を投稿して、あなたの街を彩るSNSアプリ",
+  manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/icon-72x72.png", sizes: "72x72", type: "image/png" },
+      { url: "/icon-96x96.png", sizes: "96x96", type: "image/png" },
+      { url: "/icon-128x128.png", sizes: "128x128", type: "image/png" },
+      { url: "/icon-144x144.png", sizes: "144x144", type: "image/png" },
+      { url: "/icon-152x152.png", sizes: "152x152", type: "image/png" },
+      { url: "/icon-192x192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-384x384.png", sizes: "384x384", type: "image/png" },
+      { url: "/icon-512x512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Terri-tori",
+  },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  themeColor: "#f59e0b",
 };
 
 export default function RootLayout({
