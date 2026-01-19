@@ -51,7 +51,7 @@ export default function InfoRibbon({
 
     return (
         <>
-            <div className="fixed bottom-[4rem] left-0 right-0 z-20 flex justify-center pointer-events-none">
+            <div className="fixed bottom-[2.75rem] left-0 right-0 z-20 flex justify-center pointer-events-none">
                 <div className="pointer-events-auto flex w-full items-center justify-between bg-white/90 backdrop-blur-md border-t border-rose-100 p-2">
 
                     {/* Left: Current Location */}

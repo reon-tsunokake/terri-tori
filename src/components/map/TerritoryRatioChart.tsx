@@ -36,7 +36,7 @@ const CHART_COLORS = [
     '#10b981', // emerald-500
 ];
 
-export default function TerritoryRatioChart({ seasonId, groupId, topOffset = '64px' }: { seasonId: string; groupId: number; topOffset?: string }) {
+export default function TerritoryRatioChart({ seasonId, groupId, topOffset = '2rem' }: { seasonId: string; groupId: number; topOffset?: string }) {
     const [data, setData] = useState<AreaRef[]>([]);
     const [totalArea, setTotalArea] = useState<number>(0);
     const [isExpanded, setIsExpanded] = useState(false);
