@@ -138,10 +138,14 @@ export default function Home() {
     const handleAreaClick = async (properties: MunicipalityProperties) => {
         const areaId = properties.id || properties.name || 'unknown';
         try {
-            const areaDetails = await MapService.getAreaDetails(areaId);
+            const areaDetails = await MapService.getAreaDetails(areaId, {
+                currentSeasonId,
+                groupId: selectedGroup,
+            });
             setSelectedMunicipality({
                 ...properties,
                 name: areaDetails.name || properties.name,
+                // マップで選択中のグループを確実にクエリへ付与
                 rankingLink: areaDetails.rankingLink,
                 searchLink: areaDetails.searchLink,
             });
@@ -149,7 +153,7 @@ export default function Home() {
             console.error('Failed to get area details:', error);
             setSelectedMunicipality({
                 ...properties,
-                rankingLink: `/ranking?areaId=${encodeURIComponent(areaId)}`,
+                rankingLink: `/ranking?areaId=${encodeURIComponent(areaId)}&groupId=${encodeURIComponent(String(selectedGroup))}`,
                 searchLink: `/search?areaId=${encodeURIComponent(areaId)}`,
             });
         }
