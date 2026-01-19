@@ -59,17 +59,17 @@ export default function PostForm({ onSuccess, onCancel, initialLatitude, initial
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
     };
-    
+
     checkMobile();
     window.addEventListener('resize', checkMobile);
-    
+
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
   // 初期位置情報が変更されたときにformDataを更新
   useEffect(() => {
-    if (initialLatitude !== null && initialLatitude !== undefined && 
-        initialLongitude !== null && initialLongitude !== undefined) {
+    if (initialLatitude !== null && initialLatitude !== undefined &&
+      initialLongitude !== null && initialLongitude !== undefined) {
       setFormData((prev: PostFormData) => ({
         ...prev,
         latitude: initialLatitude,
@@ -98,9 +98,9 @@ export default function PostForm({ onSuccess, onCancel, initialLatitude, initial
     try {
       // 端末の画面サイズに基づいてアスペクト比を決定
       const aspectRatio = isMobile ? 9 / 16 : 16 / 9; // スマホは縦長、PCは横長
-      
+
       const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { 
+        video: {
           facingMode: 'environment',
           aspectRatio: { ideal: aspectRatio },
           width: { ideal: isMobile ? 1080 : 1920 },
@@ -110,7 +110,7 @@ export default function PostForm({ onSuccess, onCancel, initialLatitude, initial
       });
       setStream(mediaStream);
       setIsCameraOpen(true);
-      
+
       // 少し遅延させてvideoRefが確実に利用可能になるようにする
       setTimeout(() => {
         if (videoRef.current) {
@@ -120,7 +120,7 @@ export default function PostForm({ onSuccess, onCancel, initialLatitude, initial
             console.log('Video play was interrupted:', error);
             // 再度play()を試みる
             if (videoRef.current) {
-              videoRef.current.play().catch(() => {});
+              videoRef.current.play().catch(() => { });
             }
           });
         }
@@ -222,9 +222,7 @@ export default function PostForm({ onSuccess, onCancel, initialLatitude, initial
       errors.imageFile = '画像を選択してください';
     }
 
-    if (!formData.caption.trim()) {
-      errors.caption = 'キャプションを入力してください';
-    } else if (formData.caption.length > 500) {
+    if (formData.caption.length > 500) {
       errors.caption = 'キャプションは500文字以内で入力してください';
     }
 
@@ -327,212 +325,212 @@ export default function PostForm({ onSuccess, onCancel, initialLatitude, initial
       )}
 
       <div className="min-h-screen p-4 sm:p-6 md:p-8">
-      {isCameraOpen ? (
-        // カメラ画面（全画面プレビュー）
-        <div className="fixed inset-0 bg-black flex flex-col">
-          <div className={`relative overflow-hidden ${formState.previewUrl ? 'flex items-center justify-center p-4' : 'flex-1'}`}>
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className={`w-full h-full object-cover ${formState.previewUrl ? 'hidden' : ''}`}
-            />
-            {formState.previewUrl && (
-              <img
-                src={formState.previewUrl}
-                alt="Captured"
-                className={`max-h-[70vh] max-w-full object-contain rounded-lg shadow-2xl ${isMobile ? 'w-auto' : 'w-auto'}`}
+        {isCameraOpen ? (
+          // カメラ画面（全画面プレビュー）
+          <div className="fixed inset-0 bg-black flex flex-col">
+            <div className={`relative overflow-hidden ${formState.previewUrl ? 'flex items-center justify-center p-4' : 'flex-1'}`}>
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                muted
+                className={`w-full h-full object-cover ${formState.previewUrl ? 'hidden' : ''}`}
               />
-            )}
-             
-            {/* 撮影前のボタン */}
-            {!formState.previewUrl && (
-              <>
-                {/* 右上：キャンセルボタン（×） */}
-                {onCancel && (
-                  <div className="absolute top-4 right-4 z-10">
+              {formState.previewUrl && (
+                <img
+                  src={formState.previewUrl}
+                  alt="Captured"
+                  className={`max-h-[70vh] max-w-full object-contain rounded-lg shadow-2xl ${isMobile ? 'w-auto' : 'w-auto'}`}
+                />
+              )}
+
+              {/* 撮影前のボタン */}
+              {!formState.previewUrl && (
+                <>
+                  {/* 右上：キャンセルボタン（×） */}
+                  {onCancel && (
+                    <div className="absolute top-4 right-4 z-10">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          closeCamera();
+                          onCancel();
+                        }}
+                        className="p-3 bg-black/50 backdrop-blur-sm rounded-full text-white hover:bg-black/70 active:scale-95 transition-all duration-200 shadow-2xl"
+                      >
+                        <HiX className="h-7 w-7" />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* 中央下：撮影ボタン（丸いボタン） */}
+                  <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-10">
                     <button
                       type="button"
-                      onClick={() => {
-                        closeCamera();
-                        onCancel();
-                      }}
-                      className="p-3 bg-black/50 backdrop-blur-sm rounded-full text-white hover:bg-black/70 active:scale-95 transition-all duration-200 shadow-2xl"
+                      onClick={capturePhoto}
+                      className="w-20 h-20 bg-white rounded-full hover:bg-gray-100 active:scale-95 transition-all duration-200 shadow-2xl flex items-center justify-center border-4 border-gray-300"
                     >
-                      <HiX className="h-7 w-7" />
+                      <div className="w-16 h-16 bg-white rounded-full border-2 border-gray-400"></div>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+            <canvas ref={canvasRef} className="hidden" />
+
+            {/* 撮影後のボタン（プレビュー外） */}
+            {formState.previewUrl && (
+              <div className="p-6 bg-black">
+                <div className="flex gap-4 max-w-lg mx-auto">
+                  <button
+                    type="button"
+                    onClick={confirmPhoto}
+                    className="flex-1 px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-full hover:from-green-600 hover:to-emerald-600 active:scale-95 transition-all duration-200 shadow-2xl font-bold flex items-center justify-center gap-3 text-lg"
+                  >
+                    完了
+                  </button>
+                  <button
+                    type="button"
+                    onClick={retakePhoto}
+                    className="px-8 py-4 bg-gray-800 text-white rounded-full hover:bg-gray-700 active:scale-95 transition-all duration-200 shadow-2xl flex items-center gap-3 font-semibold"
+                  >
+                    <FaCamera className="h-6 w-6" />
+                    再撮影
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          // 投稿フォーム
+          <div className="max-w-2xl mx-auto">
+            <h2 className="text-3xl font-bold mb-8 bg-gradient-to-r from-rose-500 to-pink-500 bg-clip-text text-transparent">
+              新規投稿
+            </h2>
+
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* 撮影済み画像プレビュー */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  撮影した写真
+                </label>
+                {formState.previewUrl && (
+                  <div className="space-y-3">
+                    <div className="mt-4 rounded-2xl overflow-hidden shadow-lg">
+                      <img
+                        src={formState.previewUrl}
+                        alt="Preview"
+                        className={`w-full object-cover ${isMobile ? 'aspect-[9/16]' : 'aspect-video'}`}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={retakePhoto}
+                      className="w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-semibold rounded-xl hover:from-blue-600 hover:to-cyan-600 active:scale-95 transition-all duration-200 shadow-lg flex items-center justify-center gap-2"
+                    >
+                      <FaCamera className="h-5 w-5" />
+                      再撮影する
                     </button>
                   </div>
                 )}
+                {formState.errors.imageFile && (
+                  <p className="mt-1 text-sm text-red-600">
+                    {formState.errors.imageFile}
+                  </p>
+                )}
+              </div>
 
-                {/* 中央下：撮影ボタン（丸いボタン） */}
-                <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-10">
+              {/* キャプション */}
+              <div>
+                <label
+                  htmlFor="caption"
+                  className="block text-sm font-bold text-gray-700 mb-3"
+                >
+                  キャプション
+                </label>
+                <textarea
+                  id="caption"
+                  name="caption"
+                  value={formData.caption}
+                  onChange={handleInputChange}
+                  rows={4}
+                  maxLength={500}
+                  className="w-full px-4 py-3 border-2 border-rose-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-400 focus:border-transparent transition-all duration-200 bg-white/50 backdrop-blur-sm text-black"
+                  placeholder="この写真について説明してください（任意）"
+                />
+                <div className="mt-1 flex justify-between">
+                  <div>
+                    {formState.errors.caption && (
+                      <p className="text-sm text-red-600">
+                        {formState.errors.caption}
+                      </p>
+                    )}
+                  </div>
+                  <p className="text-sm text-gray-500">
+                    {formData.caption.length} / 500
+                  </p>
+                </div>
+              </div>
+
+              {/* 位置情報 */}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-3">
+                  位置情報 <span className="text-rose-500">*</span>
+                </label>
+                <div className="p-4 bg-gradient-to-br from-rose-50/50 to-pink-50/50 backdrop-blur-sm rounded-xl border-2 border-rose-100 shadow-sm">
+                  {formData.latitude !== 0 && formData.longitude !== 0 ? (
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-sm text-green-600 font-semibold">✓ 位置情報取得済み</span>
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        緯度: {formData.latitude.toFixed(6)}, 経度:{' '}
+                        {formData.longitude.toFixed(6)}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">
+                      位置情報が取得されていません
+                    </p>
+                  )}
+                </div>
+                {formState.errors.location && (
+                  <p className="mt-1 text-sm text-red-600">
+                    {formState.errors.location}
+                  </p>
+                )}
+              </div>
+
+              {/* 全体エラー */}
+              {formState.errors.general && (
+                <div className="p-4 bg-rose-50 border-2 border-rose-200 rounded-xl shadow-sm">
+                  <p className="text-sm text-rose-600 font-medium">{formState.errors.general}</p>
+                </div>
+              )}
+
+              {/* ボタン */}
+              <div className="flex gap-4 pt-2">
+                <button
+                  type="submit"
+                  disabled={formState.isSubmitting}
+                  className="flex-1 px-8 py-4 bg-gradient-to-r from-rose-500 to-pink-500 text-white text-lg font-bold rounded-2xl hover:from-rose-600 hover:to-pink-600 disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed active:scale-95 transition-all duration-200 shadow-xl touch-manipulation"
+                >
+                  {formState.isSubmitting ? '投稿中...' : '投稿する'}
+                </button>
+                {onCancel && (
                   <button
                     type="button"
-                    onClick={capturePhoto}
-                    className="w-20 h-20 bg-white rounded-full hover:bg-gray-100 active:scale-95 transition-all duration-200 shadow-2xl flex items-center justify-center border-4 border-gray-300"
+                    onClick={onCancel}
+                    disabled={formState.isSubmitting}
+                    className="px-8 py-4 border-2 border-rose-300 text-rose-600 font-semibold rounded-2xl hover:bg-rose-50 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:border-gray-300 disabled:text-gray-400 active:scale-95 transition-all duration-200 shadow-lg"
                   >
-                    <div className="w-16 h-16 bg-white rounded-full border-2 border-gray-400"></div>
+                    キャンセル
                   </button>
-                </div>
-              </>
-            )}
-          </div>
-          <canvas ref={canvasRef} className="hidden" />
-          
-          {/* 撮影後のボタン（プレビュー外） */}
-          {formState.previewUrl && (
-            <div className="p-6 bg-black">
-              <div className="flex gap-4 max-w-lg mx-auto">
-                <button
-                  type="button"
-                  onClick={confirmPhoto}
-                  className="flex-1 px-8 py-4 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-full hover:from-green-600 hover:to-emerald-600 active:scale-95 transition-all duration-200 shadow-2xl font-bold flex items-center justify-center gap-3 text-lg"
-                >
-                  完了
-                </button>
-                <button
-                  type="button"
-                  onClick={retakePhoto}
-                  className="px-8 py-4 bg-gray-800 text-white rounded-full hover:bg-gray-700 active:scale-95 transition-all duration-200 shadow-2xl flex items-center gap-3 font-semibold"
-                >
-                  <FaCamera className="h-6 w-6" />
-                  再撮影
-                </button>
+                )}
               </div>
-            </div>
-          )}
-        </div>
-      ) : (
-        // 投稿フォーム
-        <div className="max-w-2xl mx-auto">
-      <h2 className="text-3xl font-bold mb-8 bg-gradient-to-r from-rose-500 to-pink-500 bg-clip-text text-transparent">
-        新規投稿
-      </h2>
-
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* 撮影済み画像プレビュー */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            撮影した写真
-          </label>
-          {formState.previewUrl && (
-            <div className="space-y-3">
-              <div className="mt-4 rounded-2xl overflow-hidden shadow-lg">
-                <img
-                  src={formState.previewUrl}
-                  alt="Preview"
-                  className={`w-full object-cover ${isMobile ? 'aspect-[9/16]' : 'aspect-video'}`}
-                />
-              </div>
-              <button
-                type="button"
-                onClick={retakePhoto}
-                className="w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-semibold rounded-xl hover:from-blue-600 hover:to-cyan-600 active:scale-95 transition-all duration-200 shadow-lg flex items-center justify-center gap-2"
-              >
-                <FaCamera className="h-5 w-5" />
-                再撮影する
-              </button>
-            </div>
-          )}
-          {formState.errors.imageFile && (
-            <p className="mt-1 text-sm text-red-600">
-              {formState.errors.imageFile}
-            </p>
-          )}
-        </div>
-
-        {/* キャプション */}
-        <div>
-          <label
-            htmlFor="caption"
-            className="block text-sm font-bold text-gray-700 mb-3"
-          >
-            キャプション <span className="text-rose-500">*</span>
-          </label>
-          <textarea
-            id="caption"
-            name="caption"
-            value={formData.caption}
-            onChange={handleInputChange}
-            rows={4}
-            maxLength={500}
-            className="w-full px-4 py-3 border-2 border-rose-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-400 focus:border-transparent transition-all duration-200 bg-white/50 backdrop-blur-sm text-black"
-            placeholder="この写真について説明してください..."
-          />
-          <div className="mt-1 flex justify-between">
-            <div>
-              {formState.errors.caption && (
-                <p className="text-sm text-red-600">
-                  {formState.errors.caption}
-                </p>
-              )}
-            </div>
-            <p className="text-sm text-gray-500">
-              {formData.caption.length} / 500
-            </p>
-          </div>
-        </div>
-
-        {/* 位置情報 */}
-        <div>
-          <label className="block text-sm font-bold text-gray-700 mb-3">
-            位置情報 <span className="text-rose-500">*</span>
-          </label>
-          <div className="p-4 bg-gradient-to-br from-rose-50/50 to-pink-50/50 backdrop-blur-sm rounded-xl border-2 border-rose-100 shadow-sm">
-            {formData.latitude !== 0 && formData.longitude !== 0 ? (
-              <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-sm text-green-600 font-semibold">✓ 位置情報取得済み</span>
-                </div>
-                <p className="text-sm text-gray-600">
-                  緯度: {formData.latitude.toFixed(6)}, 経度:{' '}
-                  {formData.longitude.toFixed(6)}
-                </p>
-              </div>
-            ) : (
-              <p className="text-sm text-gray-500">
-                位置情報が取得されていません
-              </p>
-            )}
-          </div>
-          {formState.errors.location && (
-            <p className="mt-1 text-sm text-red-600">
-              {formState.errors.location}
-            </p>
-          )}
-        </div>
-
-        {/* 全体エラー */}
-        {formState.errors.general && (
-          <div className="p-4 bg-rose-50 border-2 border-rose-200 rounded-xl shadow-sm">
-            <p className="text-sm text-rose-600 font-medium">{formState.errors.general}</p>
+            </form>
           </div>
         )}
-
-        {/* ボタン */}
-        <div className="flex gap-4 pt-2">
-          <button
-            type="submit"
-            disabled={formState.isSubmitting}
-            className="flex-1 px-8 py-4 bg-gradient-to-r from-rose-500 to-pink-500 text-white text-lg font-bold rounded-2xl hover:from-rose-600 hover:to-pink-600 disabled:from-gray-400 disabled:to-gray-400 disabled:cursor-not-allowed active:scale-95 transition-all duration-200 shadow-xl touch-manipulation"
-          >
-            {formState.isSubmitting ? '投稿中...' : '投稿する'}
-          </button>
-          {onCancel && (
-            <button
-              type="button"
-              onClick={onCancel}
-              disabled={formState.isSubmitting}
-              className="px-8 py-4 border-2 border-rose-300 text-rose-600 font-semibold rounded-2xl hover:bg-rose-50 disabled:bg-gray-100 disabled:cursor-not-allowed disabled:border-gray-300 disabled:text-gray-400 active:scale-95 transition-all duration-200 shadow-lg"
-            >
-              キャンセル
-            </button>
-          )}
-          </div>
-        </form>
-        </div>
-      )}
       </div>
     </div>
   );
