@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { FaMapMarkerAlt } from 'react-icons/fa';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSeasonPost } from '@/contexts/SeasonPostContext';
+import { useLocation } from '@/contexts/LocationContext';
 import { PostDocument, UserDocument } from '@/types/firestore';
 import { getMunicipalityName } from '@/utils/location';
 import { checkIfUserLiked } from '@/services/likeService';
@@ -40,6 +41,7 @@ export default function LikeRanking() {
   const router = useRouter();
   const { user } = useAuth();
   const { currentSeasonId } = useSeasonPost();
+  const { location } = useLocation();
   
   const [lightPosts, setLightPosts] = useState<LightPostData[]>([]);
   const [detailCache, setDetailCache] = useState<Map<string, Partial<RankingPostData>>>(new Map());
@@ -51,7 +53,9 @@ export default function LikeRanking() {
   const [selectedSeason, setSelectedSeason] = useState<string>('all');
   const [availableGroups, setAvailableGroups] = useState<number[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<number | 'all'>('all'); // グループ選択ステート
+  const [userGroupId, setUserGroupId] = useState<number | null>(null);
   const [regionNameCache, setRegionNameCache] = useState<Map<string, string>>(new Map());
+  const hasQueryParams = useRef(false);
 
   // グループ一覧を取得
   useEffect(() => {
@@ -87,6 +91,32 @@ export default function LikeRanking() {
     fetchGroups();
   }, [currentSeasonId]);
 
+  // ユーザー所属グループを初期選択に反映（クエリ指定がない場合のみ）
+  useEffect(() => {
+    const applyUserGroup = async () => {
+      if (hasQueryParams.current) return;
+      if (!user || availableGroups.length === 0) return;
+      if (selectedGroup !== 'all') return;
+      try {
+        const userRef = doc(db, 'users', user.uid);
+        const snap = await getDoc(userRef);
+        if (snap.exists()) {
+          const data = snap.data();
+          const gidRaw = data?.groupId;
+          const gid = typeof gidRaw === 'number' ? gidRaw : Number(gidRaw);
+          if (!Number.isNaN(gid) && availableGroups.includes(gid)) {
+            setUserGroupId(gid);
+            setSelectedGroup(gid);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching user group:', error);
+      }
+    };
+
+    applyUserGroup();
+  }, [user, availableGroups]);
+
   // 初期フィルタ（マップの詳細から渡されたクエリを反映）
   useEffect(() => {
     const applyQueryFilters = async () => {
@@ -96,6 +126,11 @@ export default function LikeRanking() {
       const areaId = params.get('areaId');
       const areaName = params.get('areaName');
       const seasonId = params.get('seasonId');
+      const groupId = params.get('groupId');
+
+      if (areaId || areaName || seasonId || groupId) {
+        hasQueryParams.current = true;
+      }
 
       if (areaName) {
         setSelectedMunicipality(decodeURIComponent(areaName));
@@ -111,10 +146,43 @@ export default function LikeRanking() {
       if (seasonId) {
         setSelectedSeason(decodeURIComponent(seasonId));
       }
+
+      // グループIDでフィルタ（数値のみ反映）
+      if (groupId) {
+        const parsed = Number(decodeURIComponent(groupId));
+        if (!Number.isNaN(parsed)) {
+          setSelectedGroup(parsed);
+        }
+      }
     };
 
     applyQueryFilters();
   }, []);
+
+  // 現在地から自治体名を解決して初期フィルタ（クエリ指定がない場合のみ）
+  useEffect(() => {
+    const applyCurrentLocation = async () => {
+      if (hasQueryParams.current) return;
+      if (selectedMunicipality !== 'all') return;
+      if (!location.regionId) return;
+      try {
+        const name = await getMunicipalityName(location.regionId);
+        if (name) setSelectedMunicipality(name);
+      } catch (error) {
+        console.error('Failed to apply location filter:', error);
+      }
+    };
+
+    applyCurrentLocation();
+  }, [location.regionId, selectedMunicipality]);
+
+  // クエリ指定が無く、currentSeasonId が判明したら現在シーズンで初期フィルタ
+  useEffect(() => {
+    if (hasQueryParams.current) return;
+    if (selectedSeason === 'all' && currentSeasonId) {
+      setSelectedSeason(currentSeasonId);
+    }
+  }, [selectedSeason, currentSeasonId]);
 
   // 無限スクロール
   useEffect(() => {
@@ -161,17 +229,6 @@ export default function LikeRanking() {
         }));
 
         setLightPosts(posts);
-        
-        // 地域名キャッシュを構築
-        const regionIds = [...new Set(posts.map(p => p.regionId).filter(Boolean))] as string[];
-        const newRegionCache = new Map<string, string>();
-        await Promise.all(
-          regionIds.map(async (regionId) => {
-            const name = await getMunicipalityName(regionId);
-            if (name) newRegionCache.set(regionId, name);
-          })
-        );
-        setRegionNameCache(newRegionCache);
       } catch (error) {
         console.error("Error fetching posts:", error);
       } finally {
@@ -180,6 +237,31 @@ export default function LikeRanking() {
     };
 
     fetchAllPosts();
+  }, []);
+
+  // 地域一覧を取得してキャッシュに保存
+  useEffect(() => {
+    const fetchRegions = async () => {
+      try {
+        const regionsRef = collection(db, 'regions');
+        const querySnapshot = await getDocs(regionsRef);
+        const newRegionCache = new Map<string, string>();
+        
+        querySnapshot.docs.forEach((doc) => {
+          const data = doc.data();
+          const name = data?.name;
+          if (name) {
+            newRegionCache.set(doc.id, String(name));
+          }
+        });
+        
+        setRegionNameCache(newRegionCache);
+      } catch (error) {
+        console.error('Error fetching regions:', error);
+      }
+    };
+
+    fetchRegions();
   }, []);
 
   // ランキングデータの生成

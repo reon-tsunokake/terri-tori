@@ -138,7 +138,10 @@ export default function Home() {
     const handleAreaClick = async (properties: MunicipalityProperties) => {
         const areaId = properties.id || properties.name || 'unknown';
         try {
-            const areaDetails = await MapService.getAreaDetails(areaId);
+            const areaDetails = await MapService.getAreaDetails(areaId, {
+                currentSeasonId: currentSeasonId ?? undefined,
+                groupId: selectedGroup,
+            });
             setSelectedMunicipality({
                 ...properties,
                 name: areaDetails.name || properties.name,

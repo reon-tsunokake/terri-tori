@@ -1,7 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { FaMapMarkedAlt, FaUserFriends, FaChevronDown } from 'react-icons/fa';
+import { MapService } from '@/services/mapService';
 
 type Props = {
     selectedGroup: number;
@@ -18,6 +19,16 @@ export default function GroupMapSelector({
 }: Props) {
     // ユーザーのグループを見ているかどうか
     const isViewingMyGroup = userGroup !== undefined && userGroup === selectedGroup;
+
+    // 外部サービスに現在の選択を同期
+    useEffect(() => {
+        MapService.setSelectedGroupId(selectedGroup);
+    }, [selectedGroup]);
+
+    const handleChange = (groupId: number) => {
+        MapService.setSelectedGroupId(groupId);
+        onChange(groupId);
+    };
 
     return (
         <div className="absolute top-[3.5rem] sm:top-[4rem] md:top-[5rem] left-0 right-0 z-10 flex justify-center p-2 pointer-events-none">
@@ -42,7 +53,7 @@ export default function GroupMapSelector({
                 <div className="relative flex items-center">
                     <select
                         value={selectedGroup}
-                        onChange={(e) => onChange(Number(e.target.value))}
+                        onChange={(e) => handleChange(Number(e.target.value))}
                         className="appearance-none bg-transparent font-bold text-gray-700 text-sm sm:text-base pr-8 pl-1 outline-none cursor-pointer hover:text-rose-600 transition-colors"
                     >
                         {availableGroups.map((group) => (
@@ -58,7 +69,7 @@ export default function GroupMapSelector({
                 {/* インジケーター (自分のグループ以外を見ているとき) */}
                 {userGroup && !isViewingMyGroup && (
                     <button
-                        onClick={() => onChange(userGroup)}
+                        onClick={() => handleChange(userGroup)}
                         className="ml-1 bg-rose-100/50 hover:bg-rose-100 text-rose-600 px-2 py-1 rounded-full text-[10px] font-bold transition-colors"
                     >
                         Return
