@@ -214,7 +214,12 @@ async function updateTopRankersForGroup(
           const data = doc.data();
           userInfoMap.set(doc.id, {
             displayName: data?.displayName || "Unknown User",
-            photoUrl: data?.photoUrl,
+            photoUrl: data?.photoURL,
+          });
+          logger.info(`ユーザ ${doc.id} の情報を取得`, {
+            displayName: data?.displayName,
+            photoUrl: data?.photoURL,
+            hasPhotoUrl: !!data?.photoURL,
           });
         }
       });
