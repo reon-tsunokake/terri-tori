@@ -16,6 +16,7 @@
 - 🏆 リアルタイムランキングシステム
 - 🔐 Firebase認証（Email/Google）
 - 📱 モバイルファーストデザイン
+- 🚀 PWA対応（オフライン機能、ホーム画面追加）
 
 ---
 
@@ -25,6 +26,7 @@
 |---------|------|
 | **フロントエンド** | Next.js 16.0.1 (App Router), React 19 |
 | **スタイリング** | TailwindCSS v4 |
+| **PWA** | next-pwa (Service Worker, オフライン対応) |
 | **地図** | Mapbox GL JS |
 | **バックエンド** | Firebase (Authentication, Firestore, Storage, Functions) |
 | **言語** | TypeScript (strict mode) |
@@ -185,6 +187,9 @@ npm run dev
 
 # プロダクションビルド
 npm run build
+
+# プロダクションビルド（webpack使用 - PWA対応）
+npm run build -- --webpack
 
 # プロダクションサーバー起動
 npm start
