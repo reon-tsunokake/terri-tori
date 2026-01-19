@@ -48,7 +48,7 @@ export default function BottomNavigation() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-rose-100 z-10">
-      <div className="max-w-sm mx-auto px-4 py-2 sm:py-3">
+      <div className="max-w-sm mx-auto px-2 py-1">
         <div className="flex justify-around items-center">
           {navItems.map((item) => {
             const IconComponent = item.icon;
@@ -56,22 +56,18 @@ export default function BottomNavigation() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex flex-col items-center space-y-1 py-2 px-3 rounded-xl transition-all duration-300 touch-manipulation ${
+                className={`flex items-center justify-center p-2 rounded-lg transition-all duration-300 touch-manipulation ${
                   item.isActive
                     ? 'text-rose-500 bg-rose-50'
                     : 'text-gray-500 hover:text-rose-400 hover:bg-rose-25 active:scale-95'
                 }`}
+                aria-label={item.label}
               >
                 <IconComponent 
                   className={`w-6 h-6 transition-transform duration-300 ${
                     item.isActive ? 'scale-110' : 'group-hover:scale-105'
                   }`} 
                 />
-                <span className={`text-xs font-medium transition-colors duration-300 ${
-                  item.isActive ? 'text-rose-600' : 'text-gray-600'
-                }`}>
-                  {item.label}
-                </span>
               </Link>
             );
           })}

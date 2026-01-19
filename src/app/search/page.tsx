@@ -192,18 +192,29 @@ export default function SearchPage() {
     setDisplayCount(18);
   }, [selectedMunicipality, selectedSeason, sortOrder]);
 
-  // 表示する投稿（最初のN件のみ）
+  // ランダムシャッフル関数
+  const shuffleArray = <T,>(array: T[]): T[] => {
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  };
+
+  // 表示する投稿（最初のN件のみ、ランダムにシャッフル）
   const displayedPosts = useMemo(() => {
-    return filteredPosts.slice(0, displayCount);
+    const sliced = filteredPosts.slice(0, displayCount);
+    return shuffleArray(sliced);
   }, [filteredPosts, displayCount]);
 
   return (
     <div className="min-h-screen bg-white pb-20">
       <Header />
       
-      <main className="pt-16">
+      <main className="pt-10 sm:pt-12">
         {/* --- Filter Bar --- */}
-        <div className="sticky top-16 z-10 bg-white/95 backdrop-blur-sm border-b border-gray-100 px-4 py-3 space-y-3 shadow-sm">
+        <div className="sticky top-10 sm:top-12 z-10 bg-white/95 backdrop-blur-sm border-b border-gray-100 px-4 py-3 space-y-3 shadow-sm">
           <div className="grid grid-cols-2 gap-2">
             {/* Region Filter */}
             <select
@@ -228,23 +239,6 @@ export default function SearchPage() {
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
-          </div>
-
-          {/* Sort Controls */}
-          <div className="flex justify-end items-center space-x-2 text-xs text-gray-500">
-            <span>並び替え (いいね数):</span>
-            <button
-              onClick={() => setSortOrder('desc')}
-              className={`px-3 py-1 rounded-full border ${sortOrder === 'desc' ? 'bg-gray-800 text-white border-gray-800' : 'bg-white border-gray-300'}`}
-            >
-              多い順
-            </button>
-            <button
-              onClick={() => setSortOrder('asc')}
-              className={`px-3 py-1 rounded-full border ${sortOrder === 'asc' ? 'bg-gray-800 text-white border-gray-800' : 'bg-white border-gray-300'}`}
-            >
-              少ない順
-            </button>
           </div>
         </div>
 
